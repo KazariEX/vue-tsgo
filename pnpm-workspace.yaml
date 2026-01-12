@@ -1,0 +1,14 @@
+shamefullyHoist: true
+
+catalog:
+  "@vue/compiler-dom": ^3.5.26
+  "@vue/compiler-sfc": ^3.5.26
+  "@vue/shared": ^3.5.26
+  "@zinkawaii/eslint-config": ^0.4.1
+  "@zinkawaii/tsconfig": ^0.0.2
+  bumpp: ^10.3.2
+  eslint: ^9.39.2
+  oxc-parser: ^0.108.0
+  oxc-walker: ^0.6.0
+  tsdown: ^0.19.0
+  vitest: ^4.0.17

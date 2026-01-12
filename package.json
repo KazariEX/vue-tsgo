@@ -1,0 +1,41 @@
+{
+  "name": "vue-tsgo",
+  "type": "module",
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.28.0",
+  "description": "",
+  "author": "KazariEX",
+  "license": "MIT",
+  "repository": "KazariEX/vue-tsgo",
+  "keywords": [],
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown -w",
+    "prepack": "pnpm run build",
+    "release": "bumpp --no-push -c \"release: v%s\"",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@vue/compiler-dom": "catalog:",
+    "@vue/shared": "catalog:",
+    "oxc-parser": "catalog:",
+    "oxc-walker": "catalog:"
+  },
+  "devDependencies": {
+    "@vue/compiler-sfc": "catalog:",
+    "@zinkawaii/eslint-config": "catalog:",
+    "@zinkawaii/tsconfig": "catalog:",
+    "bumpp": "catalog:",
+    "eslint": "catalog:",
+    "tsdown": "catalog:",
+    "vitest": "catalog:"
+  }
+}
