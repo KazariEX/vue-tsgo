@@ -28,6 +28,7 @@
     "@vue/shared": "catalog:",
     "muggle-string": "catalog:",
     "oxc-parser": "catalog:",
+    "oxc-resolver": "catalog:",
     "oxc-walker": "catalog:",
     "picomatch": "catalog:"
   },

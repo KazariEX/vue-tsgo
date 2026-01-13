@@ -10,6 +10,7 @@ export interface IR {
     scriptSetup?: IRScriptSetup;
     styles: IRStyle[];
     customBlocks: IRCustomBlock[];
+    comments: string[];
 }
 
 export interface IRBlock {
@@ -69,6 +70,7 @@ export function createIR(sfc: SFCDescriptor) {
     const ir: IR = {
         styles: [],
         customBlocks: [],
+        comments: sfc.comments,
     };
 
     if (sfc.template) {

@@ -19,8 +19,8 @@ export interface ScriptCodegenOptions {
     scriptSetup?: IRScriptSetup;
     scriptRanges?: ScriptRanges;
     scriptSetupRanges?: ScriptSetupRanges;
-    templateAndStyleTypes: Set<string>;
     templateAndStyleCodes: Code[];
+    templateAndStyleTypes: Set<string>;
     exposed: Set<string>;
 }
 
