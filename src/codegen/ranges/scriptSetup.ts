@@ -55,8 +55,7 @@ const tsCheckRE = /^\s*@ts-(?:no)?check(?:$|\s)/;
 export function collectScriptSetupRanges(scriptSetup: IRScriptSetup) {
     const leadingCommentEndOffset = scriptSetup.ast.body.length
         ? getLeadingComments(scriptSetup.ast.body[0], scriptSetup.content, scriptSetup.comments)
-            .reverse()
-            .find((c) => c.type === "Line" && tsCheckRE.test(c.value))
+            .findLast((c) => c.type === "Line" && tsCheckRE.test(c.value))
             ?.end ?? 0
         : 0;
 

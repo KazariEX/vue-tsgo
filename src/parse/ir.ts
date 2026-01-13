@@ -72,7 +72,7 @@ export function createIR(sfc: SFCDescriptor) {
     };
 
     if (sfc.template) {
-        ir.template = createIRBlock(sfc, sfc.template, "html", (block) => {
+        ir.template = createIRBlock(sfc, sfc.template, "template", "html", (block) => {
             const errors: CompilerDOM.CompilerError[] = [];
             const warnings: CompilerDOM.CompilerError[] = [];
             const options: CompilerDOM.CompilerOptions = {
@@ -92,7 +92,7 @@ export function createIR(sfc: SFCDescriptor) {
     }
 
     if (sfc.script) {
-        ir.script = createIRBlock(sfc, sfc.script, "js", (block) => {
+        ir.script = createIRBlock(sfc, sfc.script, "script", "js", (block) => {
             const result = parseSync(sfc.filename, block.content, {
                 lang: block.lang as "js" | "ts" | "jsx" | "tsx",
                 sourceType: "module",
@@ -110,7 +110,7 @@ export function createIR(sfc: SFCDescriptor) {
     }
 
     if (sfc.scriptSetup) {
-        ir.scriptSetup = createIRBlock(sfc, sfc.scriptSetup, "js", (block) => {
+        ir.scriptSetup = createIRBlock(sfc, sfc.scriptSetup, "scriptSetup", "js", (block) => {
             const result = parseSync(sfc.filename, block.content, {
                 lang: block.lang as "js" | "ts" | "jsx" | "tsx",
                 sourceType: "module",
@@ -127,8 +127,9 @@ export function createIR(sfc: SFCDescriptor) {
         });
     }
 
-    for (const style of sfc.styles) {
-        const block = createIRBlock(sfc, style, "css", (block) => {
+    for (let i = 0; i < sfc.styles.length; i++) {
+        const style = sfc.styles[i];
+        const block = createIRBlock(sfc, style, `style_${i}`, "css", (block) => {
             const module = createIRAttr("__module", style, block);
             const bindings = [...parseStyleBindings(block.content)];
             const classNames = [...parseStyleClassNames(block.content)];
@@ -143,8 +144,9 @@ export function createIR(sfc: SFCDescriptor) {
         ir.styles.push(block);
     }
 
-    for (const customBlock of sfc.customBlocks) {
-        const block = createIRBlock(sfc, customBlock, "txt", (block) => {
+    for (let i = 0; i < sfc.customBlocks.length; i++) {
+        const customBlock = sfc.customBlocks[i];
+        const block = createIRBlock(sfc, customBlock, `customBlock_${i}`, "txt", (block) => {
             return {
                 ...block,
                 type: customBlock.type,
@@ -159,11 +161,12 @@ export function createIR(sfc: SFCDescriptor) {
 function createIRBlock<T>(
     sfc: SFCDescriptor,
     original: SFCBlock,
+    name: string,
     defaultLang: string,
     getter: (block: IRBlock) => T,
 ): T {
     return getter({
-        name: original.type,
+        name,
         lang: original.lang ?? defaultLang,
         start: sfc.source.lastIndexOf(`<${original.type}`, original.loc.start.offset),
         end: sfc.source.indexOf(`>`) + 1,

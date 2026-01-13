@@ -50,7 +50,7 @@ export function getClosestMultiLineCommentRange(
     source: string,
     comments: Comment[],
 ): Range | undefined {
-    const comment = getLeadingComments(node, source, comments).reverse().find((c) => c.type === "Block");
+    const comment = getLeadingComments(node, source, comments).findLast((c) => c.type === "Block");
     if (comment) {
         return getRange(comment);
     }

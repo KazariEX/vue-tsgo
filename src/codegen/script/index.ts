@@ -1,0 +1,251 @@
+import { posix as path } from "node:path";
+import type { VueCompilerOptions } from "@vue/language-core";
+import { codeFeatures } from "../codeFeatures";
+import { names } from "../names";
+import { endOfLine, newLine, section } from "../utils";
+import { generateBoundary } from "../utils/boundary";
+import { createScriptCodegenContext, type ScriptCodegenContext } from "./context";
+import { generateSetupBody, generateSetupGeneric, generateSetupImports } from "./setup";
+import { generateTemplate } from "./template";
+import type { IRBlock, IRScript, IRScriptSetup } from "../../parse/ir";
+import type { Code } from "../../types";
+import type { ExportDefaultRanges, ScriptRanges } from "../ranges/script";
+import type { ScriptSetupRanges } from "../ranges/scriptSetup";
+
+export interface ScriptCodegenOptions {
+    vueCompilerOptions: VueCompilerOptions;
+    fileName: string;
+    script?: IRScript;
+    scriptSetup?: IRScriptSetup;
+    scriptRanges?: ScriptRanges;
+    scriptSetupRanges?: ScriptSetupRanges;
+    templateAndStyleTypes: Set<string>;
+    templateAndStyleCodes: Code[];
+    exposed: Set<string>;
+}
+
+// eslint-disable-next-line ts/no-use-before-define
+export { generate as generateScript };
+
+function generate(options: ScriptCodegenOptions) {
+    const ctx = createScriptCodegenContext(options);
+    const codegen = generateScript(options, ctx);
+
+    return {
+        ...ctx,
+        codes: [...codegen],
+    };
+}
+
+function* generateScript(
+    options: ScriptCodegenOptions,
+    ctx: ScriptCodegenContext,
+): Generator<Code> {
+    const { vueCompilerOptions, script, scriptSetup, scriptRanges, scriptSetupRanges } = options;
+
+    yield* generateGlobalTypesReference(options.vueCompilerOptions, options.fileName);
+
+    // <script src="...">
+    if (typeof script?.src === "object") {
+        let src = script.src.text;
+        if (src.endsWith(".ts") && !src.endsWith(".d.ts")) {
+            src = src.slice(0, -".ts".length) + ".js";
+        }
+        else if (src.endsWith(".tsx")) {
+            src = src.slice(0, -".tsx".length) + ".jsx";
+        }
+
+        yield `import ${names.export} from `;
+        const boundary = yield* generateBoundary("main", script.src.offset, codeFeatures.verification);
+        yield `"`;
+        yield [
+            src.slice(0, script.src.text.length),
+            "main",
+            script.src.offset,
+            { __combineToken: boundary.token },
+        ];
+        yield src.slice(script.src.text.length);
+        yield `"`;
+        yield boundary.end(script.src.offset + script.src.text.length);
+        yield endOfLine;
+        yield `export default {} as typeof ${names.export}${endOfLine}`;
+    }
+    // <script> + <script setup>
+    else if (script && scriptSetup && scriptRanges && scriptSetupRanges) {
+        yield* generateSetupImports(scriptSetup, scriptSetupRanges);
+
+        // <script>
+        let self: string | undefined;
+        if (scriptRanges.exportDefault) {
+            yield* generateScriptWithExportDefault(
+                options,
+                script,
+                scriptRanges,
+                scriptRanges.exportDefault,
+                self = names.self,
+            );
+        }
+        else {
+            yield section(script, 0, script.content.length, codeFeatures.verification);
+            yield `export default {} as typeof ${names.export}${endOfLine}`;
+        }
+
+        // <script setup>
+        yield* generateExportDeclareEqual(scriptSetup, names.export);
+        if (scriptSetup.generic) {
+            yield* generateSetupGeneric(
+                options,
+                ctx,
+                scriptSetup,
+                scriptSetupRanges,
+                scriptSetup.generic,
+                generateSetupBody(
+                    options,
+                    ctx,
+                    scriptSetup,
+                    scriptSetupRanges,
+                    generateTemplate(options, ctx, self),
+                ),
+            );
+        }
+        else {
+            yield `await (async () => {${newLine}`;
+            yield* generateSetupBody(
+                options,
+                ctx,
+                scriptSetup,
+                scriptSetupRanges,
+                generateTemplate(options, ctx, self),
+                [`return `],
+            );
+            yield `})()${endOfLine}`;
+        }
+    }
+    // <script setup> only
+    else if (scriptSetup && scriptSetupRanges) {
+        yield* generateSetupImports(scriptSetup, scriptSetupRanges);
+
+        if (scriptSetup.generic) {
+            yield* generateExportDeclareEqual(scriptSetup, names.export);
+            yield* generateSetupGeneric(
+                options,
+                ctx,
+                scriptSetup,
+                scriptSetupRanges,
+                scriptSetup.generic,
+                generateSetupBody(
+                    options,
+                    ctx,
+                    scriptSetup,
+                    scriptSetupRanges,
+                    generateTemplate(options, ctx),
+                ),
+            );
+        }
+        else {
+            yield* generateSetupBody(
+                options,
+                ctx,
+                scriptSetup,
+                scriptSetupRanges,
+                generateTemplate(options, ctx),
+                generateExportDeclareEqual(scriptSetup, names.export),
+            );
+        }
+        yield `export default {} as typeof ${names.export}${endOfLine}`;
+    }
+    // <script> only
+    else if (script && scriptRanges) {
+        if (scriptRanges.exportDefault) {
+            yield* generateScriptWithExportDefault(
+                options,
+                script,
+                scriptRanges,
+                scriptRanges.exportDefault,
+                names.self,
+                generateTemplate(options, ctx, names.export),
+            );
+        }
+        else {
+            yield section(script, 0, script.content.length, codeFeatures.verification);
+            yield* generateExportDeclareEqual(script, names.export);
+            yield `(await import("${vueCompilerOptions.lib}")).defineComponent({})${endOfLine}`;
+            yield* generateTemplate(options, ctx, names.export);
+            yield `export default {} as typeof ${names.export}${endOfLine}`;
+        }
+    }
+
+    yield* ctx.localTypes.generate();
+}
+
+function* generateGlobalTypesReference(
+    options: VueCompilerOptions,
+    fileName: string,
+): Generator<Code> {
+    const { target, lib, typesRoot, checkUnknownProps } = options;
+
+    let typesPath: string;
+    if (path.isAbsolute(typesRoot)) {
+        let relativePath = path.relative(path.dirname(fileName), typesRoot);
+        if (
+            relativePath !== typesRoot
+            && !relativePath.startsWith("./")
+            && !relativePath.startsWith("../")
+        ) {
+            relativePath = "./" + relativePath;
+        }
+        typesPath = relativePath;
+    }
+    else {
+        typesPath = typesRoot;
+    }
+    yield `/// <reference types=${JSON.stringify(typesPath + "/template-helpers.d.ts")} />${newLine}`;
+    if (!checkUnknownProps) {
+        yield `/// <reference types=${JSON.stringify(typesPath + "/props-fallback.d.ts")} />${newLine}`;
+    }
+    if (lib === "vue" && target < 3.5) {
+        yield `/// <reference types=${JSON.stringify(typesPath + "/vue-3.4-shims.d.ts")} />${newLine}`;
+    }
+}
+
+function* generateScriptWithExportDefault(
+    options: ScriptCodegenOptions,
+    script: IRScript,
+    scriptRanges: ScriptRanges,
+    exportDefault: ExportDefaultRanges,
+    variableName: string,
+    templateCodegen?: Iterable<Code>,
+): Generator<Code> {
+    const componentOptions = scriptRanges.exportDefault?.options;
+    const { expression, isObjectLiteral } = componentOptions ?? exportDefault;
+    const [wrapLeft, wrapRight] = isObjectLiteral ? options.vueCompilerOptions.optionsWrapper : [];
+
+    yield section(script, 0, expression.start, codeFeatures.verification);
+    yield `{} as typeof ${names.export}`;
+    yield section(script, expression.end, exportDefault.end, codeFeatures.verification);
+    yield endOfLine;
+
+    if (templateCodegen) {
+        yield* templateCodegen;
+    }
+
+    yield* generateExportDeclareEqual(script, variableName);
+    if (wrapLeft && wrapRight) {
+        yield wrapLeft;
+        yield section(script, expression.start, expression.end, codeFeatures.verification);
+        yield wrapRight;
+    }
+    else {
+        yield section(script, expression.start, expression.end, codeFeatures.verification);
+    }
+    yield endOfLine;
+    yield section(script, exportDefault.end, script.content.length, codeFeatures.verification);
+}
+
+function* generateExportDeclareEqual(block: IRBlock, name: string): Generator<Code> {
+    yield `const `;
+    const boundary = yield* generateBoundary(block.name, 0, codeFeatures.doNotReportTs6133);
+    yield name;
+    yield boundary.end(block.content.length);
+    yield ` = `;
+}

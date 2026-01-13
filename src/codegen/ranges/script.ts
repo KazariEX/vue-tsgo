@@ -4,7 +4,7 @@ import { collectBindingRanges } from "./binding";
 import { getClosestMultiLineCommentRange, getRange, type Range } from "./utils";
 import type { IRScript } from "../../parse/ir";
 
-interface ExportDefaultRanges extends Range {
+export interface ExportDefaultRanges extends Range {
     isObjectLiteral: boolean;
     expression: Range;
     options?: {

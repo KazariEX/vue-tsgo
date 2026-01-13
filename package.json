@@ -26,11 +26,14 @@
   "dependencies": {
     "@vue/compiler-dom": "catalog:",
     "@vue/shared": "catalog:",
+    "muggle-string": "catalog:",
     "oxc-parser": "catalog:",
     "oxc-walker": "catalog:"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "@vue/compiler-sfc": "catalog:",
+    "@vue/language-core": "catalog:",
     "@zinkawaii/eslint-config": "catalog:",
     "@zinkawaii/tsconfig": "catalog:",
     "bumpp": "catalog:",
