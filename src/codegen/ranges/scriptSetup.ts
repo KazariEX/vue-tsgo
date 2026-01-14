@@ -1,4 +1,5 @@
 import { walk } from "oxc-walker";
+import type { VueCompilerOptions } from "@vue/language-core";
 import type { Argument, CallExpression, Node } from "oxc-parser";
 import { collectBindingIdentifiers, collectBindingRanges } from "./binding";
 import { getClosestMultiLineCommentRange, getLeadingComments, getRange, type Range } from "./utils";
@@ -52,7 +53,7 @@ export type ScriptSetupRanges = ReturnType<typeof collectScriptSetupRanges>;
 
 const tsCheckRE = /^\s*@ts-(?:no)?check(?:$|\s)/;
 
-export function collectScriptSetupRanges(scriptSetup: IRScriptSetup) {
+export function collectScriptSetupRanges(scriptSetup: IRScriptSetup, vueCompilerOptions: VueCompilerOptions) {
     const leadingCommentEndOffset = scriptSetup.ast.body.length
         ? getLeadingComments(scriptSetup.ast.body[0], scriptSetup.content, scriptSetup.comments)
             .findLast((c) => c.type === "Line" && tsCheckRE.test(c.value))
@@ -106,7 +107,7 @@ export function collectScriptSetupRanges(scriptSetup: IRScriptSetup) {
             if (node.type === "CallExpression" && node.callee.type === "Identifier") {
                 const calleeName = node.callee.name;
 
-                if (calleeName === "defineModel") {
+                if (vueCompilerOptions.macros.defineModel.includes(calleeName)) {
                     let localName: Range | undefined;
                     let propName: Argument | undefined;
                     let options: Argument | undefined;
@@ -179,7 +180,7 @@ export function collectScriptSetupRanges(scriptSetup: IRScriptSetup) {
                         comments: getClosestMultiLineCommentRange(node, scriptSetup.content, scriptSetup.comments),
                     });
                 }
-                else if (calleeName === "defineProps") {
+                else if (vueCompilerOptions.macros.defineProps.includes(calleeName)) {
                     defineProps = {
                         ...parseCallExpressionAssignment(node, parent),
                         statement: getStatementRange(node, parents),
@@ -207,7 +208,7 @@ export function collectScriptSetupRanges(scriptSetup: IRScriptSetup) {
                         }
                     }
                 }
-                else if (calleeName === "withDefaults") {
+                else if (vueCompilerOptions.macros.withDefaults.includes(calleeName)) {
                     const [, arg] = node.arguments;
                     withDefaults = {
                         callExp: getRange(node),
@@ -215,22 +216,22 @@ export function collectScriptSetupRanges(scriptSetup: IRScriptSetup) {
                         arg: arg ? getRange(arg) : void 0,
                     };
                 }
-                else if (calleeName === "defineEmits") {
+                else if (vueCompilerOptions.macros.defineEmits.includes(calleeName)) {
                     defineEmits = {
                         ...parseCallExpressionAssignment(node, parent),
                         statement: getStatementRange(node, parents),
                     };
                 }
-                else if (calleeName === "defineSlots") {
+                else if (vueCompilerOptions.macros.defineSlots.includes(calleeName)) {
                     defineSlots = {
                         ...parseCallExpressionAssignment(node, parent),
                         statement: getStatementRange(node, parents),
                     };
                 }
-                else if (calleeName === "defineExpose") {
+                else if (vueCompilerOptions.macros.defineExpose.includes(calleeName)) {
                     defineExpose = parseCallExpression(node);
                 }
-                else if (calleeName === "defineOptions") {
+                else if (vueCompilerOptions.macros.defineOptions.includes(calleeName)) {
                     defineOptions = {};
 
                     const firstArg = node.arguments[0];
@@ -256,16 +257,16 @@ export function collectScriptSetupRanges(scriptSetup: IRScriptSetup) {
                         }
                     }
                 }
-                else if (calleeName === "useAttrs") {
+                else if (vueCompilerOptions.composables.useAttrs.includes(calleeName)) {
                     useAttrs.push(parseCallExpression(node));
                 }
-                else if (calleeName === "useCssModule") {
+                else if (vueCompilerOptions.composables.useCssModule.includes(calleeName)) {
                     useCssModule.push(parseCallExpression(node));
                 }
-                else if (calleeName === "useSlots") {
+                else if (vueCompilerOptions.composables.useSlots.includes(calleeName)) {
                     useSlots.push(parseCallExpression(node));
                 }
-                else if (calleeName === "useTemplateRef") {
+                else if (vueCompilerOptions.composables.useTemplateRef.includes(calleeName)) {
                     useTemplateRef.push(parseCallExpressionAssignment(node, parent));
                 }
             }

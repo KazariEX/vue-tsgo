@@ -73,10 +73,10 @@ function* generateTemplate(
         yield* generateTemplateChild(options, ctx, template.ast);
     }
     yield* ctx.generateHoistVariables();
-    yield* generateSlotsType(options, ctx);
-    yield* generateInheritedAttrsType(ctx);
-    yield* generateTemplateRefsType(options, ctx);
-    yield* generateRootElType(ctx);
+    yield* generateSlots(options, ctx);
+    yield* generateInheritedAttrs(ctx);
+    yield* generateTemplateRefs(options, ctx);
+    yield* generateRootEl(ctx);
 
     if (ctx.dollarVars.size) {
         yield `var ${names.dollars}!: {${newLine}`;
@@ -105,7 +105,7 @@ function* generateTemplate(
     scope.end();
 }
 
-function* generateSlotsType(
+function* generateSlots(
     options: TemplateCodegenOptions,
     ctx: TemplateCodegenContext,
 ): Generator<Code> {
@@ -138,7 +138,7 @@ function* generateSlotsType(
     yield endOfLine;
 }
 
-function* generateInheritedAttrsType(ctx: TemplateCodegenContext) {
+function* generateInheritedAttrs(ctx: TemplateCodegenContext) {
     if (!ctx.inheritedAttrVars.size) {
         return;
     }
@@ -150,7 +150,7 @@ function* generateInheritedAttrsType(ctx: TemplateCodegenContext) {
     yield endOfLine;
 }
 
-function* generateTemplateRefsType(
+function* generateTemplateRefs(
     options: TemplateCodegenOptions,
     ctx: TemplateCodegenContext,
 ): Generator<Code> {
@@ -187,7 +187,7 @@ function* generateTemplateRefsType(
     yield endOfLine;
 }
 
-function* generateRootElType(ctx: TemplateCodegenContext): Generator<Code> {
+function* generateRootEl(ctx: TemplateCodegenContext): Generator<Code> {
     if (!ctx.singleRootElTypes.size || ctx.singleRootNodes.has(null)) {
         return;
     }

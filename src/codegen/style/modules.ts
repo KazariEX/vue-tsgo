@@ -10,7 +10,7 @@ export function* generateStyleModules(
 ): Generator<Code> {
     const { vueCompilerOptions, styles } = options;
 
-    const styleModules = styles.filter((style) => style.module);
+    const styleModules = styles.filter((style) => style.attrs.module);
     if (!styleModules.length) {
         return;
     }
@@ -18,11 +18,11 @@ export function* generateStyleModules(
 
     yield `type ${names.StyleModules} = {${newLine}`;
     for (const style of styleModules) {
-        if (style.module === true) {
+        if (style.attrs.module === true) {
             yield `$style`;
         }
         else {
-            yield style.module!.text;
+            yield style.attrs.module.text;
         }
         yield `: `;
         if (!vueCompilerOptions.strictCssModules) {

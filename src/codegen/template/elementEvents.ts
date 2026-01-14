@@ -1,13 +1,12 @@
 import CompilerDOM from "@vue/compiler-dom";
 import { camelize, capitalize } from "@vue/shared";
 import { type Node, parseSync, type Program } from "oxc-parser";
-import type { CodeInformation } from "@vue/language-core";
 import { codeFeatures } from "../codeFeatures";
 import { endOfLine, identifierRE, newLine } from "../utils";
 import { generateBoundary } from "../utils/boundary";
 import { generateCamelized } from "../utils/camelized";
 import { generateInterpolation } from "./interpolation";
-import type { Code } from "../../types";
+import type { Code, CodeInformation } from "../../types";
 import type { TemplateCodegenContext } from "./context";
 import type { TemplateCodegenOptions } from "./index";
 

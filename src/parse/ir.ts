@@ -1,16 +1,17 @@
+import CompilerDOM, { type RootNode } from "@vue/compiler-dom";
 import { type Comment, type OxcError, parseSync, type Program } from "oxc-parser";
-import type CompilerDOM from "@vue/compiler-dom";
-import type { SFCBlock, SFCDescriptor } from "@vue/compiler-sfc";
+import { getAttributeValueOffset } from "../shared";
 import { parseStyleBindings, parseStyleClassNames } from "./style/parse";
 import { parseTemplate } from "./template/parse";
 
 export interface IR {
+    fileName: string;
     template?: IRTemplate;
     script?: IRScript;
     scriptSetup?: IRScriptSetup;
     styles: IRStyle[];
-    customBlocks: IRCustomBlock[];
     comments: string[];
+    customBlocks: IRCustomBlock[];
 }
 
 export interface IRBlock {
@@ -40,18 +41,15 @@ export interface IRScript extends IRBlock {
     ast: Program;
     comments: Comment[];
     errors: OxcError[];
-    src?: IRBlockAttr;
 }
 
 export interface IRScriptSetup extends IRBlock {
     ast: Program;
     comments: Comment[];
     errors: OxcError[];
-    generic?: IRBlockAttr;
 }
 
 export interface IRStyle extends IRBlock {
-    module?: IRBlockAttr;
     bindings: {
         text: string;
         offset: number;
@@ -66,130 +64,160 @@ export interface IRCustomBlock extends IRBlock {
     type: string;
 }
 
-export function createIR(sfc: SFCDescriptor) {
+export function createIR(fileName: string, source: string) {
+    const errors: CompilerDOM.CompilerError[] = [];
+    const warnings: CompilerDOM.CompilerError[] = [];
+
+    const sfc = CompilerDOM.parse(source, {
+        comments: true,
+        parseMode: "sfc",
+        onError: (err) => errors.push(err),
+        onWarn: (warn) => warnings.push(warn),
+        expressionPlugins: ["typescript"],
+    });
+
     const ir: IR = {
+        fileName,
         styles: [],
+        comments: [],
         customBlocks: [],
-        comments: sfc.comments,
     };
 
-    if (sfc.template) {
-        ir.template = createIRBlock(sfc, sfc.template, "template", "html", (block) => {
-            const errors: CompilerDOM.CompilerError[] = [];
-            const warnings: CompilerDOM.CompilerError[] = [];
-            const options: CompilerDOM.CompilerOptions = {
-                onError: (err) => errors.push(err),
-                onWarn: (warn) => warnings.push(warn),
-                expressionPlugins: ["typescript"],
-            };
-            const ast = parseTemplate(block.content, options);
+    for (const node of sfc.children) {
+        if (node.type === CompilerDOM.NodeTypes.COMMENT) {
+            ir.comments.push(node.content);
+            continue;
+        }
+        else if (node.type !== CompilerDOM.NodeTypes.ELEMENT) {
+            continue;
+        }
 
-            return {
-                ...block,
-                ast,
-                errors,
-                warnings,
-            };
-        });
-    }
+        switch (node.tag) {
+            case "template": {
+                const block = createIRBlock(sfc, node, "html");
+                const errors: CompilerDOM.CompilerError[] = [];
+                const warnings: CompilerDOM.CompilerError[] = [];
+                const options: CompilerDOM.CompilerOptions = {
+                    onError: (err) => errors.push(err),
+                    onWarn: (warn) => warnings.push(warn),
+                    expressionPlugins: ["typescript"],
+                };
+                const ast = parseTemplate(block.content, options);
 
-    if (sfc.script) {
-        ir.script = createIRBlock(sfc, sfc.script, "script", "js", (block) => {
-            const result = parseSync(sfc.filename, block.content, {
-                lang: block.lang as "js" | "ts" | "jsx" | "tsx",
-                sourceType: "module",
-            });
-            const src = createIRAttr("__src", sfc.script!, block);
+                ir.template = {
+                    ...block,
+                    name: "template",
+                    ast,
+                    errors,
+                    warnings,
+                };
+                break;
+            }
+            case "script": {
+                const block = createIRBlock(sfc, node, "js");
+                const result = parseSync(`yggdrasill.${block.lang}`, block.content, {
+                    sourceType: "module",
+                });
 
-            return {
-                ...block,
-                ast: result.program,
-                comments: result.comments,
-                errors: result.errors,
-                src,
-            };
-        });
-    }
+                if (block.attrs.setup || block.attrs.vapor) {
+                    ir.scriptSetup = {
+                        ...block,
+                        name: "scriptSetup",
+                        ast: result.program,
+                        comments: result.comments,
+                        errors: result.errors,
+                    };
+                }
+                else {
+                    ir.script = {
+                        ...block,
+                        name: "script",
+                        ast: result.program,
+                        comments: result.comments,
+                        errors: result.errors,
+                    };
+                }
+                break;
+            }
+            case "style": {
+                const block = createIRBlock(sfc, node, "css");
+                const bindings = [...parseStyleBindings(block.content)];
+                const classNames = [...parseStyleClassNames(block.content)];
 
-    if (sfc.scriptSetup) {
-        ir.scriptSetup = createIRBlock(sfc, sfc.scriptSetup, "scriptSetup", "js", (block) => {
-            const result = parseSync(sfc.filename, block.content, {
-                lang: block.lang as "js" | "ts" | "jsx" | "tsx",
-                sourceType: "module",
-            });
-            const generic = createIRAttr("__generic", sfc.scriptSetup!, block);
+                ir.styles.push({
+                    ...block,
+                    name: `style_${ir.styles.length}`,
+                    bindings,
+                    classNames,
+                });
+                break;
+            }
+            default: {
+                const block = createIRBlock(sfc, node, "txt");
 
-            return {
-                ...block,
-                ast: result.program,
-                comments: result.comments,
-                errors: result.errors,
-                generic,
-            };
-        });
-    }
-
-    for (let i = 0; i < sfc.styles.length; i++) {
-        const style = sfc.styles[i];
-        const block = createIRBlock(sfc, style, `style_${i}`, "css", (block) => {
-            const module = createIRAttr("__module", style, block);
-            const bindings = [...parseStyleBindings(block.content)];
-            const classNames = [...parseStyleClassNames(block.content)];
-
-            return {
-                ...block,
-                module,
-                bindings,
-                classNames,
-            };
-        });
-        ir.styles.push(block);
-    }
-
-    for (let i = 0; i < sfc.customBlocks.length; i++) {
-        const customBlock = sfc.customBlocks[i];
-        const block = createIRBlock(sfc, customBlock, `customBlock_${i}`, "txt", (block) => {
-            return {
-                ...block,
-                type: customBlock.type,
-            };
-        });
-        ir.customBlocks.push(block);
+                ir.customBlocks.push({
+                    ...block,
+                    name: `customBlock_${ir.customBlocks.length}`,
+                    type: node.tag,
+                });
+                break;
+            }
+        }
     }
 
     return ir;
 }
 
-function createIRBlock<T>(
-    sfc: SFCDescriptor,
-    original: SFCBlock,
-    name: string,
+function createIRBlock(
+    sfc: RootNode,
+    node: CompilerDOM.ElementNode,
     defaultLang: string,
-    getter: (block: IRBlock) => T,
-): T {
-    return getter({
-        name,
-        lang: original.lang ?? defaultLang,
-        start: sfc.source.lastIndexOf(`<${original.type}`, original.loc.start.offset),
-        end: sfc.source.indexOf(`>`) + 1,
-        innerStart: original.loc.start.offset,
-        innerEnd: original.loc.end.offset,
-        attrs: {},
-        content: original.content,
-    });
-}
+): Omit<IRBlock, "name"> {
+    let { start, end } = node.loc;
+    let content = "";
 
-function createIRAttr<T extends SFCBlock>(
-    key: keyof T & string,
-    original: T,
-    block: IRBlock,
-) {
-    const val = original[key] as IRBlockAttr | undefined;
-    if (typeof val === "object") {
-        return {
-            ...val,
-            offset: block.start + val.offset,
-        };
+    if (node.children.length) {
+        start = node.children[0].loc.start;
+        end = node.children.at(-1)!.loc.end;
+        content = sfc.source.slice(start.offset, end.offset);
     }
-    return val;
+    else {
+        const offset = node.loc.source.indexOf("</");
+        if (offset !== -1) {
+            start = {
+                line: start.line,
+                column: start.column + offset,
+                offset: start.offset + offset,
+            };
+        }
+        end = { ...start };
+    }
+
+    const attrs: Record<string, IRBlockAttr> = {};
+    for (const prop of node.props) {
+        if (prop.type !== CompilerDOM.NodeTypes.ATTRIBUTE) {
+            continue;
+        }
+        if (!prop.value) {
+            attrs[prop.name] = true;
+        }
+        else {
+            const offset = getAttributeValueOffset(prop.value);
+            attrs[prop.name] = {
+                text: prop.value.content,
+                offset,
+                quotes: offset > prop.value.loc.start.offset,
+            };
+        }
+    }
+
+    return {
+        lang: typeof attrs.lang === "object" ? attrs.lang.text : defaultLang,
+        start: sfc.source.lastIndexOf(`<${node.tag}`, start.offset),
+        end: sfc.source.indexOf(`>`) + 1,
+        innerStart: start.offset,
+        innerEnd: end.offset,
+        attrs,
+        content,
+    };
 }

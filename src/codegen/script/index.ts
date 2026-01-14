@@ -46,27 +46,27 @@ function* generateScript(
     yield* generateGlobalTypesReference(options.vueCompilerOptions, options.fileName);
 
     // <script src="...">
-    if (typeof script?.src === "object") {
-        let src = script.src.text;
-        if (src.endsWith(".ts") && !src.endsWith(".d.ts")) {
-            src = src.slice(0, -".ts".length) + ".js";
+    if (typeof script?.attrs.src === "object") {
+        let { text, offset } = script.attrs.src;
+        if (text.endsWith(".ts") && !text.endsWith(".d.ts")) {
+            text = text.slice(0, -".ts".length) + ".js";
         }
-        else if (src.endsWith(".tsx")) {
-            src = src.slice(0, -".tsx".length) + ".jsx";
+        else if (text.endsWith(".tsx")) {
+            text = text.slice(0, -".tsx".length) + ".jsx";
         }
 
         yield `import ${names.export} from `;
-        const boundary = yield* generateBoundary("main", script.src.offset, codeFeatures.verification);
+        const boundary = yield* generateBoundary("main", offset, codeFeatures.verification);
         yield `"`;
         yield [
-            src.slice(0, script.src.text.length),
+            text.slice(0, text.length),
             "main",
-            script.src.offset,
+            offset,
             { __combineToken: boundary.token },
         ];
-        yield src.slice(script.src.text.length);
+        yield text.slice(text.length);
         yield `"`;
-        yield boundary.end(script.src.offset + script.src.text.length);
+        yield boundary.end(offset + text.length);
         yield endOfLine;
         yield `export default {} as typeof ${names.export}${endOfLine}`;
     }
@@ -92,13 +92,13 @@ function* generateScript(
 
         // <script setup>
         yield* generateExportDeclareEqual(scriptSetup, names.export);
-        if (scriptSetup.generic) {
+        if (scriptSetup.attrs.generic) {
             yield* generateSetupGeneric(
                 options,
                 ctx,
                 scriptSetup,
                 scriptSetupRanges,
-                scriptSetup.generic,
+                scriptSetup.attrs.generic,
                 generateSetupBody(
                     options,
                     ctx,
@@ -125,14 +125,14 @@ function* generateScript(
     else if (scriptSetup && scriptSetupRanges) {
         yield* generateSetupImports(scriptSetup, scriptSetupRanges);
 
-        if (scriptSetup.generic) {
+        if (scriptSetup.attrs.generic) {
             yield* generateExportDeclareEqual(scriptSetup, names.export);
             yield* generateSetupGeneric(
                 options,
                 ctx,
                 scriptSetup,
                 scriptSetupRanges,
-                scriptSetup.generic,
+                scriptSetup.attrs.generic,
                 generateSetupBody(
                     options,
                     ctx,

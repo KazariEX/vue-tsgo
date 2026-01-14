@@ -15,14 +15,13 @@ export interface CodegenResult {
 
 export function generate(
     vueCompilerOptions: VueCompilerOptions,
-    fileName: string,
     ir: IR,
 ): CodegenResult {
     // #region vueCompilerOptions
     const options = parseLocalCompilerOptions(ir.comments);
     if (options) {
         const resolver = createCompilerOptionsResolver();
-        resolver.add(options, path.dirname(fileName));
+        resolver.add(options, path.dirname(ir.fileName));
         vueCompilerOptions = resolver.resolve(vueCompilerOptions);
     }
     // #endregion
@@ -32,7 +31,7 @@ export function generate(
     // #endregion
 
     // #region scriptSetupRanges
-    const scriptSetupRanges = ir.scriptSetup && collectScriptSetupRanges(ir.scriptSetup);
+    const scriptSetupRanges = ir.scriptSetup && collectScriptSetupRanges(ir.scriptSetup, vueCompilerOptions);
     // #endregion
 
     // #region setupConsts
@@ -82,7 +81,7 @@ export function generate(
         componentName = scriptSetupRanges.defineOptions.name;
     }
     else {
-        componentName = path.basename(fileName, path.extname(fileName));
+        componentName = path.basename(ir.fileName, path.extname(ir.fileName));
     }
     componentName = capitalize(camelize(componentName));
     // #endregion
@@ -152,7 +151,7 @@ export function generate(
     // #region generatedScript
     const generatedScript = generateScript({
         vueCompilerOptions,
-        fileName,
+        fileName: ir.fileName,
         script: ir.script,
         scriptSetup: ir.scriptSetup,
         scriptRanges,

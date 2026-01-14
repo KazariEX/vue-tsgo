@@ -14,7 +14,7 @@ export function parseLocalCompilerOptions(comments: string[]) {
             const match = syntaxRE.exec(text);
             if (match) {
                 const { key, value } = match.groups!;
-                return [key, JSON.parse(value!)] as const;
+                return [key, JSON.parse(value)];
             }
         }
         catch {}
