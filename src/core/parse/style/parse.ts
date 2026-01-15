@@ -1,11 +1,11 @@
-const cssBindingReg = /\bv-bind\(\s*(?:'([^']+)'|"([^"]+)"|([a-z_]\w*))\s*\)/gi;
-const cssClassNameReg = /(?=(\.[a-z_][-\w]*)[\s.,+~>:#)[{])/gi;
-const commentReg = /(?<=\/\*)[\s\S]*?(?=\*\/)|(?<=\/\/)[\s\S]*?(?=\n)/g;
-const fragmentReg = /(?<=\{)[^{]*(?=(?<!\\);)/g;
+const bindingRE = /\bv-bind\(\s*(?:'([^']+)'|"([^"]+)"|([a-z_]\w*))\s*\)/gi;
+const classNameRE = /(?=(\.[a-z_][-\w]*)[\s.,+~>:#)[{])/gi;
+const commentRE = /(?<=\/\*)[\s\S]*?(?=\*\/)|(?<=\/\/)[\s\S]*?(?=\n)/g;
+const fragmentRE = /(?<=\{)[^{]*(?=(?<!\\);)/g;
 
 export function* parseStyleBindings(css: string) {
-    css = fillBlank(css, commentReg);
-    const matchs = css.matchAll(cssBindingReg);
+    css = fillBlank(css, commentRE);
+    const matchs = css.matchAll(bindingRE);
     for (const match of matchs) {
         const matchText = match.slice(1).find((t) => t);
         if (matchText) {
@@ -16,8 +16,8 @@ export function* parseStyleBindings(css: string) {
 }
 
 export function* parseStyleClassNames(css: string) {
-    css = fillBlank(css, commentReg, fragmentReg);
-    const matches = css.matchAll(cssClassNameReg);
+    css = fillBlank(css, commentRE, fragmentRE);
+    const matches = css.matchAll(classNameRE);
     for (const match of matches) {
         const matchText = match[1];
         if (matchText) {
@@ -26,9 +26,9 @@ export function* parseStyleClassNames(css: string) {
     }
 }
 
-function fillBlank(css: string, ...regs: RegExp[]) {
-    for (const reg of regs) {
-        css = css.replace(reg, (match) => " ".repeat(match.length));
+function fillBlank(css: string, ...regexps: RegExp[]) {
+    for (const regexp of regexps) {
+        css = css.replace(regexp, (match) => " ".repeat(match.length));
     }
     return css;
 }

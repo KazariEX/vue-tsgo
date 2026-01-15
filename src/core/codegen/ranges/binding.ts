@@ -1,6 +1,6 @@
 import { type Identifier, walk } from "oxc-walker";
 import type { VueCompilerOptions } from "@vue/language-core";
-import type { BindingIdentifier, BindingPattern, BindingProperty, Node, ParamPattern, Program } from "oxc-parser";
+import type { BindingPattern, BindingProperty, Node, ParamPattern, Program } from "oxc-parser";
 import { getRange, isFunctionLike, type Range } from "./utils";
 
 export function collectBindingRanges(ast: Program, vueCompilerOptions: VueCompilerOptions) {
@@ -78,7 +78,7 @@ export function collectBindingRanges(ast: Program, vueCompilerOptions: VueCompil
 }
 
 export function collectBindingIdentifiers(node: Node) {
-    const result: [Node, boolean][] = [];
+    const result: [Identifier, boolean][] = [];
 
     walk(node, {
         enter(node) {
@@ -96,8 +96,13 @@ export function collectBindingIdentifiers(node: Node) {
     });
 
     return result.map(([node, isRest]) => ({
-        name: (node as BindingIdentifier).name,
-        range: getRange(node),
+        name: node.name,
+        range: {
+            start: node.start,
+            // const foo: Foo = {};
+            //       ^^^^^^^^
+            end: node.start + node.name.length,
+        },
         isRest,
     }));
 }
@@ -105,7 +110,7 @@ export function collectBindingIdentifiers(node: Node) {
 function* forEachBindingIdentifier(
     node: Identifier | BindingPattern | BindingProperty | ParamPattern,
     rest = false,
-): Generator<[Node, boolean]> {
+): Generator<[Identifier, boolean]> {
     switch (node.type) {
         case "Identifier": {
             yield [node, rest];

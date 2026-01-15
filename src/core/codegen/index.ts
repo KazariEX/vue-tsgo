@@ -1,8 +1,8 @@
 import { SourceMap } from "@vue/language-core";
 import { camelize, capitalize } from "@vue/shared";
-import { replaceSourceRange, toString } from "muggle-string";
+import { toString } from "muggle-string";
 import { parseSync } from "oxc-parser";
-import { basename, dirname, extname, join } from "pathe";
+import { basename, extname } from "pathe";
 import type { Mapping, VueCompilerOptions } from "@vue/language-core";
 import { createCompilerOptionsBuilder, parseLocalCompilerOptions } from "../compilerOptions";
 import { createIR, type IRBlock } from "../parse/ir";
@@ -40,10 +40,9 @@ export function createSourceFile(
 ) {
     const sourceFile = vueCompilerOptions.extensions.some((ext) => sourcePath.endsWith(ext))
         ? createVirtualFile(sourcePath, targetPath, sourceText, vueCompilerOptions)
-        : createNativeFile(sourcePath, targetPath, sourceText, vueCompilerOptions);
+        : createNativeFile(sourcePath, targetPath, sourceText);
 
-    for (const match of sourceText.matchAll(referenceRE)) {
-        const path = join(dirname(sourcePath), match[1]);
+    for (const [, path] of sourceText.matchAll(referenceRE)) {
         sourceFile.references.push(path);
     }
 
@@ -58,7 +57,7 @@ function createVirtualFile(
 ): SourceFile {
     const ir = createIR(sourcePath, sourceText);
     const virtualLang = ir.scriptSetup?.lang ?? ir.script?.lang ?? "ts";
-    targetPath += `.${virtualLang}`.padStart(4, "_");
+    targetPath += `.${virtualLang}`;
 
     // #region vueCompilerOptions
     const options = parseLocalCompilerOptions(ir.comments);
@@ -176,7 +175,7 @@ function createVirtualFile(
     const setupExposed = new Set<string>();
     for (const name of [
         ...generatedTemplate?.accessedVars ?? [],
-        ...generatedTemplate?.dollarVars ?? [],
+        ...generatedStyle?.accessedVars ?? [],
     ]) {
         if (declaredVariables.has(name)) {
             setupExposed.add(name);
@@ -211,24 +210,6 @@ function createVirtualFile(
         exposed: setupExposed,
     });
     // #endregion
-
-    const imports: Range[] = [];
-    for (const [block, ranges] of [
-        [ir.script, scriptRanges?.imports],
-        [ir.scriptSetup, scriptSetupRanges?.imports],
-    ] as const) {
-        if (block && ranges?.length) {
-            transformImportRanges(
-                vueCompilerOptions,
-                block.content,
-                block.innerStart,
-                block.name,
-                generatedScript.codes,
-                ranges,
-            );
-            imports.push(...ranges);
-        }
-    }
 
     const blocks: Record<string, IRBlock> = {};
     for (const block of [
@@ -274,25 +255,20 @@ function createVirtualFile(
         virtualText,
         virtualLang,
         mapper,
-        imports,
+        imports: [
+            ...scriptRanges?.imports ?? [],
+            ...scriptSetupRanges?.imports ?? [],
+        ],
         references: [],
         getSourceLineAndColumn: createLineAndColumnGetter(sourceText),
         getVirtualOffset: createOffsetGetter(virtualText),
     };
 }
 
-function createNativeFile(
-    sourcePath: string,
-    targetPath: string,
-    sourceText: string,
-    vueCompilerOptions: VueCompilerOptions,
-): SourceFile {
+function createNativeFile(sourcePath: string, targetPath: string, sourceText: string): SourceFile {
     const { program: ast } = parseSync(sourcePath, sourceText);
 
     const codes: Code[] = [[sourceText, void 0, 0, codeFeatures.verification]];
-    const imports = collectImportRanges(ast);
-    transformImportRanges(vueCompilerOptions, sourceText, 0, void 0, codes, imports);
-
     const mappings = createMappings(codes);
     const mapper = new SourceMap<CodeInformation>(mappings);
     const virtualText = codes.length > 1 ? toString(codes) : void 0;
@@ -304,29 +280,11 @@ function createNativeFile(
         sourceText,
         virtualText,
         mapper,
-        imports,
+        imports: collectImportRanges(ast),
         references: [],
         getSourceLineAndColumn: createLineAndColumnGetter(sourceText),
         getVirtualOffset: createOffsetGetter(virtualText ?? ""),
     };
-}
-
-function transformImportRanges(
-    vueCompilerOptions: VueCompilerOptions,
-    sourceText: string,
-    sourceStart: number,
-    source: string | undefined,
-    codes: Code[],
-    imports: Range[],
-) {
-    for (const range of imports) {
-        const text = sourceText.slice(range.start + 1, range.end - 1);
-        if (vueCompilerOptions.extensions.some((ext) => text.endsWith(ext))) {
-            replaceSourceRange(codes, source, range.end - 1, range.end - 1, `    `);
-        }
-        range.start += sourceStart;
-        range.end += sourceStart;
-    }
 }
 
 function createMappings(codes: Code[]) {

@@ -48,23 +48,14 @@ export async function createProject(configPath: string): Promise<Project> {
     const sourceToFileMap = new Map<string, SourceFile>();
     const targetToFileMap = new Map<string, SourceFile>();
 
-    const { includes, isExcluded } = await resolveFiles(parsed.tsconfig, configRoot);
+    const includes = await resolveFiles(parsed.tsconfig, configRoot);
     const includeSet = new Set(Object.values(includes).flat());
     const mutualRoot = getMutualRoot(Object.keys(includes), configRoot);
     const toTargetPath = (path: string) => join(cacheRoot, relative(mutualRoot, path));
 
     for (const path of includeSet) {
-        await processFile(path);
-    }
-
-    async function processFile(path: string) {
-        if (isExcluded(path)) {
-            includeSet.delete(path);
-            return;
-        }
-
         if (sourceToFileMap.has(path)) {
-            return;
+            continue;
         }
 
         const sourceText = await readFile(path, "utf-8");
@@ -72,9 +63,11 @@ export async function createProject(configPath: string): Promise<Project> {
         sourceToFileMap.set(path, sourceFile);
         targetToFileMap.set(sourceFile.targetPath, sourceFile);
 
-        for (const range of sourceFile.imports) {
-            const specifier = sourceFile.sourceText.slice(range.start + 1, range.end - 1);
-            const result = await resolver.resolveFileAsync(sourceFile.sourcePath, specifier);
+        for (const specifier of [
+            ...sourceFile.imports.map((range) => sourceText.slice(range.start + 1, range.end - 1)),
+            ...sourceFile.references.map((reference) => join(dirname(path), reference)),
+        ]) {
+            const result = await resolver.resolveFileAsync(path, specifier);
             if (result?.path === void 0 || result.path.includes("/node_modules/")) {
                 continue;
             }
@@ -85,10 +78,6 @@ export async function createProject(configPath: string): Promise<Project> {
                 }
             }
             catch {}
-        }
-
-        for (const path of sourceFile.references) {
-            includeSet.add(path);
         }
     }
 
@@ -103,30 +92,7 @@ export async function createProject(configPath: string): Promise<Project> {
         for (const path of includeSet) {
             const sourceFile = getSourceFile(path)!;
             await mkdir(dirname(sourceFile.targetPath), { recursive: true });
-
-            if (sourceFile.virtualText !== void 0) {
-                let { virtualText } = sourceFile;
-                for (const range of sourceFile.imports) {
-                    const specifier = sourceFile.sourceText.slice(range.start + 1, range.end - 1);
-                    const result = await resolver.resolveFileAsync(sourceFile.sourcePath, specifier);
-                    if (result?.path !== void 0) {
-                        const importedFile = sourceToFileMap.get(result.path);
-                        if (importedFile?.type === "virtual") {
-                            // eslint-disable-next-line no-unreachable-loop
-                            for (const [offset] of sourceFile.mapper.toGeneratedLocation(range.end - 1)) {
-                                virtualText = virtualText.slice(0, offset)
-                                    + `.${importedFile.virtualLang}`.padStart(4, "_")
-                                    + virtualText.slice(offset + 4);
-                                break;
-                            }
-                        }
-                    }
-                }
-                await writeFile(sourceFile.targetPath, virtualText);
-            }
-            else {
-                await symlink(path, sourceFile.targetPath);
-            }
+            await writeFile(sourceFile.targetPath, sourceFile.virtualText ?? sourceFile.sourceText);
         }
 
         const targetConfigPath = toTargetPath(configPath);
@@ -230,74 +196,6 @@ export async function createProject(configPath: string): Promise<Project> {
         return withoutError;
     }
 
-    interface Diagnostic {
-        path: string;
-        start: {
-            line: number;
-            column: number;
-        };
-        end: {
-            line: number;
-            column: number;
-        };
-        code: number;
-        message: string;
-    }
-
-    const diagnosticRE = /^(?<path>.*?):(?<line>\d+):(?<column>\d+) - error TS(?<code>\d+): (?<message>.*)$/;
-
-    function parseDiagnostics(stdout: string) {
-        const diagnostics: Diagnostic[] = [];
-        const lines = stdout.trim().split("\n");
-
-        let cursor = 0;
-        let padding = 0;
-
-        for (let i = 0; i < lines.length; i++) {
-            const text = lines[i];
-            const match = text.match(diagnosticRE);
-
-            if (match) {
-                const { path, line, column, code, message } = match.groups!;
-                diagnostics.push({
-                    path: resolve(path),
-                    code: Number(code),
-                    start: {
-                        line: Number(line),
-                        column: Number(column),
-                    },
-                    end: {
-                        line: 0,
-                        column: 0,
-                    },
-                    message,
-                });
-                cursor = 0;
-            }
-            else if (cursor % 2 === 0 && text.length) {
-                padding = text.split(" ", 1)[0].length;
-            }
-            else if (cursor % 2 === 1 && text.includes("~")) {
-                const diagnostic = diagnostics.at(-1)!;
-                diagnostic.end = {
-                    line: diagnostic.start.line + (cursor - 3) / 2,
-                    column: text.lastIndexOf("~") + 1 - padding,
-                };
-            }
-            cursor++;
-        }
-
-        const groups: Record<string, typeof diagnostics> = {};
-        for (const diagnostic of diagnostics) {
-            let group = groups[diagnostic.path];
-            if (!group) {
-                groups[diagnostic.path] = group = [];
-            }
-            group.push(diagnostic);
-        }
-        return groups;
-    }
-
     return {
         getSourceFile,
         check,
@@ -311,30 +209,32 @@ async function resolveFiles(config: any, configRoot: string) {
         )),
     );
 
-    return {
-        includes: Object.fromEntries<string[]>(
-            await Promise.all(config.include?.map(resolve)),
-        ),
-        isExcluded(path: string) {
-            return excludes.some((pattern) => picomatch.isMatch(path, pattern));
-        },
-    };
+    return Object.fromEntries<string[]>(
+        await Promise.all(config.include?.map(resolve)),
+    );
 
     async function resolve(pattern: string) {
         const originalKey = pattern;
+        let files: string[];
+
         if (!pattern.includes("*")) {
             pattern = await transformPattern(pattern);
             if (originalKey === pattern) {
-                return [originalKey, join(configRoot, pattern)];
+                files = [join(configRoot, pattern)];
             }
         }
 
-        const files = await glob(pattern, {
+        files ??= await glob(pattern, {
             absolute: true,
             cwd: configRoot,
             ignore: "**/node_modules/**",
         });
-        return [originalKey, files];
+
+        return [originalKey, files.filter(filter)];
+    }
+
+    function filter(path: string) {
+        return !excludes.some((pattern) => picomatch.isMatch(path, pattern));
     }
 
     async function transformPattern(pattern: string) {
@@ -369,4 +269,72 @@ function isVerificationEnabled(data: CodeInformation, code: number) {
     return data.verification === true ||
         typeof data.verification === "object" &&
         data.verification.shouldReport?.(code) === true;
+}
+
+interface Diagnostic {
+    path: string;
+    start: {
+        line: number;
+        column: number;
+    };
+    end: {
+        line: number;
+        column: number;
+    };
+    code: number;
+    message: string;
+}
+
+const diagnosticRE = /^(?<path>.*?):(?<line>\d+):(?<column>\d+) - error TS(?<code>\d+): (?<message>.*)$/;
+
+function parseDiagnostics(stdout: string) {
+    const diagnostics: Diagnostic[] = [];
+    const lines = stdout.trim().split("\n");
+
+    let cursor = 0;
+    let padding = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+        const text = lines[i];
+        const match = text.match(diagnosticRE);
+
+        if (match) {
+            const { path, line, column, code, message } = match.groups!;
+            diagnostics.push({
+                path: resolve(path),
+                code: Number(code),
+                start: {
+                    line: Number(line),
+                    column: Number(column),
+                },
+                end: {
+                    line: 0,
+                    column: 0,
+                },
+                message,
+            });
+            cursor = 0;
+        }
+        else if (cursor % 2 === 0 && text.length) {
+            padding = text.split(" ", 1)[0].length;
+        }
+        else if (cursor % 2 === 1 && text.includes("~")) {
+            const diagnostic = diagnostics.at(-1)!;
+            diagnostic.end = {
+                line: diagnostic.start.line + (cursor - 3) / 2,
+                column: text.lastIndexOf("~") + 1 - padding,
+            };
+        }
+        cursor++;
+    }
+
+    const groups: Record<string, typeof diagnostics> = {};
+    for (const diagnostic of diagnostics) {
+        let group = groups[diagnostic.path];
+        if (!group) {
+            groups[diagnostic.path] = group = [];
+        }
+        group.push(diagnostic);
+    }
+    return groups;
 }

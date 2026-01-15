@@ -84,7 +84,7 @@ function* forEachInterpolationSegment(
             enter(node, parent) {
                 if (
                     node.type === "Identifier" &&
-                    (parent?.type !== "MemberExpression" || node === parent.object) &&
+                    (parent?.type !== "MemberExpression" || node === parent.object || parent.computed) &&
                     (parent?.type !== "Property" || node !== parent.key) &&
                     !scopeTracker.isDeclared(node.name)
                 ) {
