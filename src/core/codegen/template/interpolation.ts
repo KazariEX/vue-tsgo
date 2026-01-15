@@ -83,13 +83,20 @@ function* forEachInterpolationSegment(
             scopeTracker,
             enter(node, parent) {
                 if (
-                    node.type === "Identifier" &&
-                    (parent?.type !== "MemberExpression" || node === parent.object || parent.computed) &&
-                    (parent?.type !== "Property" || node !== parent.key) &&
-                    !scopeTracker.isDeclared(node.name)
+                    node.type !== "Identifier" ||
+                    parent?.type === "MemberExpression" && node !== parent.object && !parent.computed ||
+                    parent?.type === "Property" && node === parent.key ||
+                    parent?.type === "TSTypeReference" || (
+                        parent?.type === "TSQualifiedName" &&
+                        node !== parent.left &&
+                        parent.parent?.type !== "TSTypeQuery"
+                    ) ||
+                    scopeTracker.isDeclared(node.name)
                 ) {
-                    identifiers.push([node.name, node.start, parent?.type === "Property" && parent.shorthand]);
+                    return;
                 }
+
+                identifiers.push([node.name, node.start, parent?.type === "Property" && parent.shorthand]);
             },
         });
     }

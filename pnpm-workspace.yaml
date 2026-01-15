@@ -16,6 +16,7 @@ catalog:
   clerc: ^1.2.1
   empathic: ^2.0.0
   eslint: ^9.39.2
+  mlly: ^1.8.0
   muggle-string: ^0.4.1
   nypm: ^0.6.2
   oxc-parser: ^0.108.0

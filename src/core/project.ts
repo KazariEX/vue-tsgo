@@ -64,20 +64,14 @@ export async function createProject(configPath: string): Promise<Project> {
         targetToFileMap.set(sourceFile.targetPath, sourceFile);
 
         for (const specifier of [
-            ...sourceFile.imports.map((range) => sourceText.slice(range.start + 1, range.end - 1)),
+            ...sourceFile.imports,
             ...sourceFile.references.map((reference) => join(dirname(path), reference)),
         ]) {
             const result = await resolver.resolveFileAsync(path, specifier);
             if (result?.path === void 0 || result.path.includes("/node_modules/")) {
                 continue;
             }
-            try {
-                const stats = await stat(result.path);
-                if (stats.isFile()) {
-                    includeSet.add(result.path);
-                }
-            }
-            catch {}
+            includeSet.add(result.path);
         }
     }
 
@@ -92,7 +86,10 @@ export async function createProject(configPath: string): Promise<Project> {
         for (const path of includeSet) {
             const sourceFile = getSourceFile(path)!;
             await mkdir(dirname(sourceFile.targetPath), { recursive: true });
-            await writeFile(sourceFile.targetPath, sourceFile.virtualText ?? sourceFile.sourceText);
+            await writeFile(
+                sourceFile.targetPath,
+                sourceFile.type === "virtual" ? sourceFile.virtualText : sourceFile.sourceText,
+            );
         }
 
         const targetConfigPath = toTargetPath(configPath);
@@ -142,7 +139,7 @@ export async function createProject(configPath: string): Promise<Project> {
             outer: for (let i = 0; i < diagnostics.length; i++) {
                 const diagnostic = diagnostics[i];
 
-                if (!sourceFile || sourceFile.virtualText === void 0) {
+                if (!sourceFile || sourceFile.type === "native") {
                     if (path.startsWith(cacheRoot)) {
                         path = path.replace(cacheRoot, mutualRoot);
                     }

@@ -1,34 +1,40 @@
 import { SourceMap } from "@vue/language-core";
 import { camelize, capitalize } from "@vue/shared";
+import { findDynamicImports, findStaticImports } from "mlly";
 import { toString } from "muggle-string";
-import { parseSync } from "oxc-parser";
 import { basename, extname } from "pathe";
 import type { Mapping, VueCompilerOptions } from "@vue/language-core";
 import { createCompilerOptionsBuilder, parseLocalCompilerOptions } from "../compilerOptions";
 import { createIR, type IRBlock } from "../parse/ir";
-import { codeFeatures } from "./codeFeatures";
-import { collectImportRanges } from "./ranges/import";
 import { collectScriptRanges } from "./ranges/script";
 import { collectScriptSetupRanges } from "./ranges/scriptSetup";
 import { generateScript } from "./script";
 import { generateStyle } from "./style";
 import { generateTemplate } from "./template";
 import type { Code, CodeInformation } from "../types";
-import type { Range } from "./ranges/utils";
 
-export interface SourceFile {
-    type: "virtual" | "native";
+interface File {
     sourcePath: string;
     targetPath: string;
     sourceText: string;
-    virtualText?: string;
-    virtualLang?: string;
-    mapper: SourceMap<CodeInformation>;
-    imports: Range[];
+    imports: string[];
     references: string[];
+}
+
+export interface VirtualFile extends File {
+    type: "virtual";
+    virtualText: string;
+    virtualLang: string;
+    mapper: SourceMap<CodeInformation>;
     getSourceLineAndColumn: (offset: number) => { line: number; column: number };
     getVirtualOffset: (line: number, column: number) => number;
 }
+
+export interface NativeFile extends File {
+    type: "native";
+}
+
+export type SourceFile = VirtualFile | NativeFile;
 
 const referenceRE = /\/\/\/\s*<reference\s+path=["'](.*?)["']\s*\/>/g;
 
@@ -42,6 +48,12 @@ export function createSourceFile(
         ? createVirtualFile(sourcePath, targetPath, sourceText, vueCompilerOptions)
         : createNativeFile(sourcePath, targetPath, sourceText);
 
+    for (const item of findStaticImports(sourceText)) {
+        sourceFile.imports.push(item.specifier);
+    }
+    for (const item of findDynamicImports(sourceText)) {
+        sourceFile.imports.push(item.expression);
+    }
     for (const [, path] of sourceText.matchAll(referenceRE)) {
         sourceFile.references.push(path);
     }
@@ -255,10 +267,7 @@ function createVirtualFile(
         virtualText,
         virtualLang,
         mapper,
-        imports: [
-            ...scriptRanges?.imports ?? [],
-            ...scriptSetupRanges?.imports ?? [],
-        ],
+        imports: [],
         references: [],
         getSourceLineAndColumn: createLineAndColumnGetter(sourceText),
         getVirtualOffset: createOffsetGetter(virtualText),
@@ -266,24 +275,13 @@ function createVirtualFile(
 }
 
 function createNativeFile(sourcePath: string, targetPath: string, sourceText: string): SourceFile {
-    const { program: ast } = parseSync(sourcePath, sourceText);
-
-    const codes: Code[] = [[sourceText, void 0, 0, codeFeatures.verification]];
-    const mappings = createMappings(codes);
-    const mapper = new SourceMap<CodeInformation>(mappings);
-    const virtualText = codes.length > 1 ? toString(codes) : void 0;
-
     return {
         type: "native",
         sourcePath,
         targetPath,
         sourceText,
-        virtualText,
-        mapper,
-        imports: collectImportRanges(ast),
+        imports: [],
         references: [],
-        getSourceLineAndColumn: createLineAndColumnGetter(sourceText),
-        getVirtualOffset: createOffsetGetter(virtualText ?? ""),
     };
 }
 

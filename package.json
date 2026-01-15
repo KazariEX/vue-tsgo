@@ -35,6 +35,7 @@
     "@vue/shared": "catalog:",
     "clerc": "catalog:",
     "empathic": "catalog:",
+    "mlly": "catalog:",
     "muggle-string": "catalog:",
     "nypm": "catalog:",
     "oxc-parser": "catalog:",
