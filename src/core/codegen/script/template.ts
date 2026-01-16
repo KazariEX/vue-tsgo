@@ -109,12 +109,7 @@ function* generateTemplateComponents(
     if (script && scriptRanges?.exportDefault?.options?.components) {
         const { components } = scriptRanges.exportDefault.options;
         yield `const ${names.componentsOption} = `;
-        yield section(
-            script,
-            components.start,
-            components.end,
-            codeFeatures.verification,
-        );
+        yield section(script, components.start, components.end, codeFeatures.verification);
         yield endOfLine;
         types.push(`typeof ${names.componentsOption}`);
     }
@@ -125,7 +120,6 @@ function* generateTemplateComponents(
             ? `import("${vueCompilerOptions.lib}").GlobalComponents`
             : `import("${vueCompilerOptions.lib}").GlobalComponents & Pick<typeof import("${vueCompilerOptions.lib}"), "Transition" | "TransitionGroup" | "KeepAlive" | "Suspense" | "Teleport">`
     }${endOfLine}`;
-    yield `let ${names.components}!: ${names.LocalComponents} & ${names.GlobalComponents}${endOfLine}`;
     yield `let ${names.intrinsics}!: ${
         vueCompilerOptions.target >= 3.3
             ? `import("${vueCompilerOptions.lib}/jsx-runtime").JSX.IntrinsicElements`
@@ -146,12 +140,7 @@ function* generateTemplateDirectives(
     if (script && scriptRanges?.exportDefault?.options?.directives) {
         const { directives } = scriptRanges.exportDefault.options;
         yield `const ${names.directivesOption} = `;
-        yield section(
-            script,
-            directives.start,
-            directives.end,
-            codeFeatures.verification,
-        );
+        yield section(script, directives.start, directives.end, codeFeatures.verification);
         yield endOfLine;
         types.push(`__VLS_ResolveDirectives<typeof ${names.directivesOption}>`);
     }

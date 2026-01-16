@@ -2,7 +2,6 @@ export const names = {
     // @keep-sorted
     ...{
         base: "__VLS_base",
-        components: "__VLS_components",
         componentsOption: "__VLS_componentsOption",
         ctx: "__VLS_ctx",
         defaultModels: "__VLS_defaultModels",
