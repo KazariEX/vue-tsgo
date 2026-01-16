@@ -79,11 +79,13 @@ export async function createProject(configPath: string): Promise<Project> {
     const mutualRoot = getMutualRoot(includes, configRoot);
     const toSourcePath = (path: string) => join(mutualRoot, relative(cacheRoot, path));
     const toTargetPath = (path: string) => join(cacheRoot, relative(mutualRoot, path));
+    // avoid parsing errors for TS specific syntax in JS files
+    const toTargetLang = (lang: string) => (lang === "js" ? "ts" : lang === "jsx" ? "tsx" : lang);
 
     for (const path of includes) {
         const sourceFile = sourceToFiles.get(path)!;
         const targetPath = sourceFile.type === "virtual"
-            ? toTargetPath(path) + `.${sourceFile.virtualLang}`
+            ? toTargetPath(path) + "." + toTargetLang(sourceFile.virtualLang)
             : toTargetPath(path);
         targetToFiles.set(targetPath, sourceFile);
     }
@@ -96,7 +98,7 @@ export async function createProject(configPath: string): Promise<Project> {
             tasks.push(async () => {
                 const sourceFile = sourceToFiles.get(path)!;
                 const targetPath = sourceFile.type === "virtual"
-                    ? toTargetPath(path) + `.${sourceFile.virtualLang}`
+                    ? toTargetPath(path) + "." + toTargetLang(sourceFile.virtualLang)
                     : toTargetPath(path);
 
                 await mkdir(dirname(targetPath), { recursive: true });
