@@ -1,5 +1,5 @@
 import CompilerDOM from "@vue/compiler-dom";
-import { camelize } from "@vue/shared";
+import { camelize, isBuiltInDirective } from "@vue/shared";
 import { codeFeatures } from "../codeFeatures";
 import { names } from "../names";
 import { endOfLine } from "../utils";
@@ -12,15 +12,6 @@ import { generateObjectProperty } from "./objectProperty";
 import type { Code } from "../../types";
 import type { TemplateCodegenContext } from "./context";
 import type { TemplateCodegenOptions } from "./index";
-
-const builtInDirectives = new Set([
-    "cloak",
-    "html",
-    "memo",
-    "once",
-    "show",
-    "text",
-]);
 
 export function* generateElementDirectives(
     options: TemplateCodegenOptions,
@@ -60,6 +51,11 @@ function* generateIdentifier(
     ctx: TemplateCodegenContext,
     prop: CompilerDOM.DirectiveNode,
 ): Generator<Code> {
+    if (!options.vueCompilerOptions.checkUnknownDirectives || isBuiltInDirective(prop.name)) {
+        yield `{} as any`;
+        return;
+    }
+
     const rawName = "v-" + prop.name;
     const boundary = yield* generateBoundary(
         "template",
@@ -73,12 +69,10 @@ function* generateIdentifier(
         rawName,
         "template",
         prop.loc.start.offset,
-        { verification: options.vueCompilerOptions.checkUnknownDirectives && !builtInDirectives.has(prop.name) },
+        codeFeatures.verification,
     );
-    if (!builtInDirectives.has(prop.name)) {
-        ctx.accessVariable(camelize(rawName));
-    }
     yield boundary.end();
+    ctx.accessVariable(camelize(rawName));
 }
 
 function* generateArg(
