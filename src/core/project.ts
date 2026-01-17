@@ -154,7 +154,7 @@ export async function createProject(configPath: string): Promise<Project> {
 
         const tsgo = join(resolvedTsgo.path, "../bin/tsgo.js");
         const { stdout } = await $({ nothrow: true })`
-            node ${tsgo} --project "${toTargetPath(configPath)}" --pretty true
+            ${process.execPath} ${tsgo} --project "${toTargetPath(configPath)}" --pretty true
         `;
 
         const groups = parseDiagnostics(stripVTControlCharacters(stdout));
