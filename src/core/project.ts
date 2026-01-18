@@ -7,12 +7,11 @@ import { dirname, join, relative, resolve } from "pathe";
 import picomatch from "picomatch";
 import { glob } from "tinyglobby";
 import { parse } from "tsconfck";
-import { $ } from "zx";
 import type { TSConfig } from "pkg-types";
 import packageJson from "../../package.json";
 import { createSourceFile, type SourceFile } from "./codegen";
 import { createCompilerOptionsBuilder } from "./compilerOptions";
-import { isVerificationEnabled } from "./shared";
+import { isVerificationEnabled, runTsgoCommand } from "./shared";
 
 export interface Project {
     runTsgo: () => Promise<void>;
@@ -146,16 +145,12 @@ export async function createProject(configPath: string): Promise<Project> {
 
     async function runTsgo() {
         await generate();
-        const resolvedTsgo = await resolver.async(configRoot, "@typescript/native-preview/package.json");
-        if (resolvedTsgo?.path === void 0) {
-            // TODO:
-            process.exit(1);
-        }
-
-        const tsgo = join(resolvedTsgo.path, "../bin/tsgo.js");
-        const output = await $({ nothrow: true })`
-            ${process.execPath} ${tsgo} --project "${toTargetPath(configPath)}" --pretty true
-        `;
+        const output = await runTsgoCommand(configRoot, [
+            "--project",
+            toTargetPath(configPath),
+            "--pretty",
+            "true",
+        ]);
 
         const { groups, rest } = parseStdout(output.stdout);
         const stats: { path: string; line: number; count: number }[] = [];
