@@ -1,34 +1,23 @@
 import { hyphenate } from "@vue/shared";
-import { ResolverFactory } from "oxc-resolver";
+import resolver from "oxc-resolver";
 import { join } from "pathe";
 import { x } from "tinyexec";
 import type CompilerDOM from "@vue/compiler-dom";
 import type { IRTemplate } from "./parse/ir";
 import type { CodeInformation } from "./types";
 
-export { hyphenate as hyphenateTag };
-
-export async function runTsgoCommand(cwd: string, args: string[]) {
-    const resolver = new ResolverFactory({
-        extensions: [
-            ".js",
-            ".json",
-        ],
-    });
-    const resolvedTsgo = await resolver.async(cwd, "@typescript/native-preview/package.json");
+export function runTsgoCommand(cwd: string, args: string[]) {
+    const resolvedTsgo = resolver.sync(cwd, "@typescript/native-preview/package.json");
     if (resolvedTsgo?.path === void 0) {
         // TODO:
         process.exit(1);
     }
 
     const tsgo = join(resolvedTsgo.path, "../bin/tsgo.js");
-    const output = await x(process.execPath, [
-        tsgo,
-        ...args,
-    ]);
-
-    return output;
+    return x(process.execPath, [tsgo, ...args]);
 }
+
+export { hyphenate as hyphenateTag };
 
 export function hyphenateAttr(str: string) {
     let hyphenated = hyphenate(str);

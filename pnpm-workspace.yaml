@@ -30,4 +30,3 @@ catalog:
   tsdown: ^0.19.0
   vitest: ^4.0.17
   vue: ^3.5.26
-
