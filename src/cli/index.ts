@@ -1,15 +1,18 @@
 #!/usr/bin/env node
-import { Cli, defineCommand } from "clerc";
+import { Clerc, defineCommand, helpPlugin, versionPlugin } from "clerc";
 import { join, resolve } from "pathe";
 import { find } from "tsconfck";
 import packageJson from "../../package.json";
 import { createProject } from "../core/project";
+import { runTsgoCommand } from "../core/shared";
 
 const tsgo = defineCommand({
     name: "",
     flags: {
         project: {
             type: String,
+            short: "p",
+            description: "Path to tsconfig.json file",
         },
     },
 }, async (context) => {
@@ -31,7 +34,17 @@ const tsgo = defineCommand({
     await project.runTsgo();
 });
 
-await Cli()
+const { stdout: tsgoHelpText } = await runTsgoCommand(
+    process.cwd(),
+    ["--help"],
+);
+
+await Clerc.create()
+    .use(helpPlugin({
+        command: false,
+        footer: "-".repeat(40) + `\n` + tsgoHelpText,
+    }))
+    .use(versionPlugin())
     .name("Vue Tsgo")
     .scriptName("vue-tsgo")
     .description(packageJson.description)

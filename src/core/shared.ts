@@ -1,7 +1,21 @@
 import { hyphenate } from "@vue/shared";
+import resolver from "oxc-resolver";
+import { join } from "pathe";
+import { x } from "tinyexec";
 import type CompilerDOM from "@vue/compiler-dom";
 import type { IRTemplate } from "./parse/ir";
 import type { CodeInformation } from "./types";
+
+export function runTsgoCommand(cwd: string, args: string[]) {
+    const resolvedTsgo = resolver.sync(cwd, "@typescript/native-preview/package.json");
+    if (resolvedTsgo?.path === void 0) {
+        // TODO:
+        process.exit(1);
+    }
+
+    const tsgo = join(resolvedTsgo.path, "../bin/tsgo.js");
+    return x(process.execPath, [tsgo, ...args]);
+}
 
 export { hyphenate as hyphenateTag };
 
