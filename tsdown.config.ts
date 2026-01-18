@@ -5,5 +5,7 @@ export default defineConfig({
         index: "./src/index.ts",
         cli: "./src/cli/index.ts",
     },
-    exports: true,
+    exports: {
+        exclude: ["cli"],
+    },
 });

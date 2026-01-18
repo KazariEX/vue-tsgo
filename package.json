@@ -10,15 +10,13 @@
   "keywords": [],
   "exports": {
     ".": "./dist/index.mjs",
-    "./cli": "./dist/cli.mjs",
     "./package.json": "./package.json"
   },
   "types": "./dist/index.d.mts",
   "bin": {
-    "vue-tsgo": "./bin/vue-tsgo.mjs"
+    "vue-tsgo": "./dist/cli.mjs"
   },
   "files": [
-    "bin",
     "dist"
   ],
   "scripts": {

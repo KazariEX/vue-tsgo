@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { Clerc, defineCommand, helpPlugin, versionPlugin } from "clerc";
 import { join, resolve } from "pathe";
 import { find } from "tsconfck";
@@ -38,7 +39,7 @@ const { stdout: tsgoHelpText } = await runTsgoCommand(
     ["--help"],
 );
 
-export const cli = Clerc.create()
+await Clerc.create()
     .use(helpPlugin({
         command: false,
         footer: "-".repeat(40) + `\n` + tsgoHelpText,
@@ -48,4 +49,5 @@ export const cli = Clerc.create()
     .scriptName("vue-tsgo")
     .description(packageJson.description)
     .version(packageJson.version)
-    .command(tsgo);
+    .command(tsgo)
+    .parse();
