@@ -13,7 +13,7 @@ catalog:
   "@zinkawaii/eslint-config": ^0.4.1
   "@zinkawaii/tsconfig": ^0.0.2
   bumpp: ^10.3.2
-  clerc: ^1.2.1
+  clerc: 1.3.0-beta.1
   empathic: ^2.0.0
   eslint: ^9.39.2
   mlly: ^1.8.0

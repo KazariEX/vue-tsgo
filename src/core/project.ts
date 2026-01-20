@@ -15,7 +15,7 @@ import { createCompilerOptionsBuilder } from "./compilerOptions";
 import { isVerificationEnabled } from "./shared";
 
 export interface Project {
-    runTsgo: () => Promise<void>;
+    runTsgo: (args?: string[]) => Promise<void>;
 }
 
 export async function createProject(configPath: string): Promise<Project> {
@@ -144,7 +144,7 @@ export async function createProject(configPath: string): Promise<Project> {
         await Promise.all(tasks.map((task) => task()));
     }
 
-    async function runTsgo() {
+    async function runTsgo(args: string[] = []) {
         await generate();
         const resolvedTsgo = await resolver.async(configRoot, "@typescript/native-preview/package.json");
         if (resolvedTsgo?.path === void 0) {
@@ -155,10 +155,9 @@ export async function createProject(configPath: string): Promise<Project> {
         const tsgo = join(resolvedTsgo.path, "../bin/tsgo.js");
         const output = await exec(process.execPath, [
             tsgo,
-            "--project",
-            toTargetPath(configPath),
-            "--pretty",
-            "true",
+            ...["--project", toTargetPath(configPath)],
+            ...["--pretty", "true"],
+            ...args,
         ]);
 
         const { groups, rest } = parseStdout(output.stdout);
