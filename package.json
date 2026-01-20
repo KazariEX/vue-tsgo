@@ -42,9 +42,9 @@
     "oxc-walker": "catalog:",
     "pathe": "catalog:",
     "picomatch": "catalog:",
+    "tinyexec": "catalog:",
     "tinyglobby": "catalog:",
-    "tsconfck": "catalog:",
-    "zx": "catalog:"
+    "tsconfck": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

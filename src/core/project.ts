@@ -5,9 +5,9 @@ import * as pkg from "empathic/package";
 import { ResolverFactory } from "oxc-resolver";
 import { dirname, join, relative, resolve } from "pathe";
 import picomatch from "picomatch";
+import { exec } from "tinyexec";
 import { glob } from "tinyglobby";
 import { parse } from "tsconfck";
-import { $ } from "zx";
 import type { TSConfig } from "pkg-types";
 import packageJson from "../../package.json";
 import { createSourceFile, type SourceFile } from "./codegen";
@@ -153,9 +153,13 @@ export async function createProject(configPath: string): Promise<Project> {
         }
 
         const tsgo = join(resolvedTsgo.path, "../bin/tsgo.js");
-        const output = await $({ nothrow: true })`
-            ${process.execPath} ${tsgo} --project "${toTargetPath(configPath)}" --pretty true
-        `;
+        const output = await exec(process.execPath, [
+            tsgo,
+            "--project",
+            toTargetPath(configPath),
+            "--pretty",
+            "true",
+        ]);
 
         const { groups, rest } = parseStdout(output.stdout);
         const stats: { path: string; line: number; count: number }[] = [];
