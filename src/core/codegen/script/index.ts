@@ -164,7 +164,7 @@ function* generateScript(
                 script,
                 scriptRanges,
                 scriptRanges.exportDefault,
-                names.self,
+                names.export,
                 generateTemplate(options, ctx, names.export),
             );
         }
