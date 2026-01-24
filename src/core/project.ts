@@ -3,11 +3,12 @@ import { mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises"
 import { stripVTControlCharacters, styleText } from "node:util";
 import * as pkg from "empathic/package";
 import { ResolverFactory } from "oxc-resolver";
-import { dirname, join, relative, resolve } from "pathe";
+import { dirname, extname, join, relative, resolve } from "pathe";
 import picomatch from "picomatch";
 import { exec } from "tinyexec";
 import { glob } from "tinyglobby";
 import { parse } from "tsconfck";
+import type { VueCompilerOptions } from "@vue/language-core";
 import type { TSConfig } from "pkg-types";
 import packageJson from "../../package.json";
 import { createSourceFile, type SourceFile } from "./codegen";
@@ -45,7 +46,7 @@ export async function createProject(configPath: string): Promise<Project> {
     }
     const vueCompilerOptions = builder.build();
 
-    const includes = await resolveFiles(parsed.tsconfig, configRoot);
+    const includes = await resolveFiles(parsed.tsconfig, configRoot, vueCompilerOptions);
     const sourceToFiles = new Map<string, SourceFile>();
     const targetToFiles = new Map<string, SourceFile>();
 
@@ -263,7 +264,12 @@ export async function createProject(configPath: string): Promise<Project> {
     };
 }
 
-async function resolveFiles(config: TSConfig, configRoot: string) {
+async function resolveFiles(config: TSConfig, configRoot: string, vueCompilerOptions: VueCompilerOptions) {
+    const extensions = new Set([
+        ...[".ts", ".tsx", ".js", ".jsx", ".json", ".mjs", ".mts", ".cjs", ".cts"],
+        ...vueCompilerOptions.extensions,
+    ]);
+
     const includes = await Promise.all(
         config.include?.map(async (pattern) => {
             pattern = await transformPattern(pattern);
@@ -286,7 +292,9 @@ async function resolveFiles(config: TSConfig, configRoot: string) {
     );
 
     return new Set(
-        includes.flat().filter((path) => excludes.every((match) => !match(path))),
+        includes.flat().filter((path) => (
+            excludes.every((match) => !match(path)) && extensions.has(extname(path))
+        )),
     );
 
     async function transformPattern(pattern: string) {
