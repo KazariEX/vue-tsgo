@@ -172,6 +172,14 @@ export async function createProject(configPath: string): Promise<Project> {
             );
 
             if (sourceFile?.type === "virtual") {
+                if (
+                    sourceFile.virtualLang !== "ts" &&
+                    sourceFile.virtualLang !== "tsx" &&
+                    parsed.tsconfig.compilerOptions?.checkJs !== true
+                ) {
+                    diagnostics.length = 0;
+                }
+
                 outer: for (let i = 0; i < diagnostics.length; i++) {
                     const diagnostic = diagnostics[i];
 
