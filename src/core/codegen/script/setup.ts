@@ -246,7 +246,10 @@ export function* generateSetupBody(
             insert(callExp.end, ` as typeof ${names.dollars}.$slots)`);
         }
     }
-    for (const { callExp, arg } of scriptSetupRanges.useTemplateRef) {
+    for (const { callExp, arg, typeArg } of scriptSetupRanges.useTemplateRef) {
+        if (typeArg) {
+            continue;
+        }
         insert(callExp.start, `(`);
         insert(
             callExp.end,
