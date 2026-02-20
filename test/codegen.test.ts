@@ -199,3 +199,82 @@ const slots = defineSlots<AccordionSlots<T>>()
         expect(vt).not.toContain("__VLS_ctx.keyof");
     });
 });
+
+// ---------------------------------------------------------------------------
+// Tests: useTemplateRef with explicit type argument (circular inference regression)
+// ---------------------------------------------------------------------------
+
+describe("useTemplateRef codegen — explicit type argument preservation", () => {
+    /**
+     * Regression: `useTemplateRef<ComponentPublicInstance>('rootRef')` was being
+     * cast to `as Readonly<ShallowRef<__VLS_TemplateRefs['rootRef'] | null>>`,
+     * overriding the user's explicit type parameter and creating circular
+     * type inference in tsgo (TS7022).
+     */
+    it("does not add ShallowRef cast when useTemplateRef has an explicit type argument", () => {
+        const src = `
+<script setup lang="ts">
+import { type ComponentPublicInstance } from 'vue'
+const rootRef = useTemplateRef<ComponentPublicInstance>('rootRef')
+</script>
+<template>
+  <div ref="rootRef" />
+</template>
+`;
+        const vt = generateVirtual(src);
+
+        // The original call should be preserved without the ShallowRef cast
+        expect(vt).toContain("useTemplateRef<ComponentPublicInstance>");
+        // Must NOT contain the overriding cast
+        expect(vt).not.toContain("as Readonly<");
+        expect(vt).not.toContain("__VLS_TemplateRefs['rootRef']");
+    });
+
+    it("still adds ShallowRef cast when useTemplateRef has no type argument", () => {
+        const src = `
+<script setup lang="ts">
+const rootRef = useTemplateRef('rootRef')
+</script>
+<template>
+  <div ref="rootRef" />
+</template>
+`;
+        const vt = generateVirtual(src);
+
+        // Without a type argument, the cast should be present
+        expect(vt).toContain("as Readonly<");
+        expect(vt).toContain("ShallowRef<");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: import / re-export detection for file resolution
+// ---------------------------------------------------------------------------
+
+describe("import and re-export detection", () => {
+    /**
+     * Regression: `export * from './foo'` and `export * as ns from './bar'`
+     * were not being detected as imports, so the referenced files were not
+     * included in the project and caused TS2307 "Cannot find module" errors.
+     */
+    it("detects `export * from` as an import specifier", () => {
+        const src = `export * from './components'\nexport { default } from './utils'\n`;
+        const sf = createSourceFile("index.ts", src, makeVueCompilerOptions());
+        expect(sf.imports).toContain("./components");
+        expect(sf.imports).toContain("./utils");
+    });
+
+    it("detects `export * as ns from` as an import specifier", () => {
+        const src = `export * as prose from './prose'\n`;
+        const sf = createSourceFile("index.ts", src, makeVueCompilerOptions());
+        expect(sf.imports).toContain("./prose");
+    });
+
+    it("detects regular imports alongside re-exports", () => {
+        const src = `import { foo } from './foo'\nexport * from './bar'\nexport { baz } from './baz'\n`;
+        const sf = createSourceFile("index.ts", src, makeVueCompilerOptions());
+        expect(sf.imports).toContain("./foo");
+        expect(sf.imports).toContain("./bar");
+        expect(sf.imports).toContain("./baz");
+    });
+});
