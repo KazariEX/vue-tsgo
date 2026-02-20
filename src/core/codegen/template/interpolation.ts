@@ -86,6 +86,9 @@ function* forEachInterpolationSegment(
                     node.type !== "Identifier" ||
                     parent?.type === "MemberExpression" && node !== parent.object && !parent.computed ||
                     parent?.type === "Property" && node === parent.key ||
+                    parent?.type === "TSFunctionType" ||
+                    parent?.type === "TSMethodSignature" ||
+                    parent?.type === "TSPropertySignature" ||
                     parent?.type === "TSTypeReference" || (
                         parent?.type === "TSQualifiedName" &&
                         node !== parent.left &&
