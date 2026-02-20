@@ -1,6 +1,7 @@
 {
   "extends": "@zinkawaii/tsconfig",
   "include": [
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "test/**/*.ts"
   ]
 }

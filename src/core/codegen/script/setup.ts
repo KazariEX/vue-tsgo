@@ -247,10 +247,6 @@ export function* generateSetupBody(
         }
     }
     for (const { callExp, arg, typeArg } of scriptSetupRanges.useTemplateRef) {
-        // When the user provides an explicit type argument
-        // (e.g. `useTemplateRef<ComponentPublicInstance>('ref')`), skip the
-        // `as ShallowRef<__VLS_TemplateRefs[…]>` cast — the user's type is
-        // authoritative and the cast can create circular inference in tsgo.
         if (typeArg) {
             continue;
         }
