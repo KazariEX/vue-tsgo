@@ -92,30 +92,40 @@ describe("interpolation", () => {
     });
 });
 
-describe("import and re-export detection", () => {
-    /**
-     * Regression: `export * from './foo'` and `export * as ns from './bar'`
-     * were not being detected as imports, so the referenced files were not
-     * included in the project and caused TS2307 "Cannot find module" errors.
-     */
-    it("detects `export * from` as an import specifier", () => {
-        const src = `export * from './components'\nexport { default } from './utils'\n`;
-        const sf = createSourceFile("index.ts", src, makeVueCompilerOptions());
-        expect(sf.imports).toContain("./components");
-        expect(sf.imports).toContain("./utils");
+describe("metadata", () => {
+    it("import and re-export detection", () => {
+        const src = /* ts */`
+            import { foo } from "./foo";
+            import * as bar from "./bar";
+
+            export { default } from "./utils";
+            export * from "./components";
+            export * as prose from "./prose";
+        `;
+
+        const sourceFile = createSourceFile("dummy.ts", src, vueCompilerOptions);
+        expect(sourceFile.imports).toMatchInlineSnapshot(`
+          [
+            "./foo",
+            "./bar",
+            "./utils",
+            "./components",
+            "./prose",
+          ]
+        `);
     });
 
-    it("detects `export * as ns from` as an import specifier", () => {
-        const src = `export * as prose from './prose'\n`;
-        const sf = createSourceFile("index.ts", src, makeVueCompilerOptions());
-        expect(sf.imports).toContain("./prose");
-    });
+    it("reference detection", () => {
+        const src = /* ts */`
+            /// <reference path="./foo" />
+            /// <reference types="vue" />
+        `;
 
-    it("detects regular imports alongside re-exports", () => {
-        const src = `import { foo } from './foo'\nexport * from './bar'\nexport { baz } from './baz'\n`;
-        const sf = createSourceFile("index.ts", src, makeVueCompilerOptions());
-        expect(sf.imports).toContain("./foo");
-        expect(sf.imports).toContain("./bar");
-        expect(sf.imports).toContain("./baz");
+        const sourceFile = createSourceFile("dummy.ts", src, vueCompilerOptions);
+        expect(sourceFile.references).toMatchInlineSnapshot(`
+          [
+            "./foo",
+          ]
+        `);
     });
 });
