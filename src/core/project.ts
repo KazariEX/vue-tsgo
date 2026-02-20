@@ -3,7 +3,7 @@ import { mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises"
 import { stripVTControlCharacters, styleText } from "node:util";
 import * as pkg from "empathic/package";
 import { ResolverFactory } from "oxc-resolver";
-import { dirname, extname, join, relative, resolve } from "pathe";
+import { basename, dirname, extname, join, relative, resolve } from "pathe";
 import picomatch from "picomatch";
 import { exec } from "tinyexec";
 import { glob } from "tinyglobby";
@@ -102,10 +102,31 @@ export async function createProject(configPath: string): Promise<Project> {
                     : toTargetPath(path);
 
                 await mkdir(dirname(targetPath), { recursive: true });
-                await writeFile(
-                    targetPath,
-                    sourceFile.type === "virtual" ? sourceFile.virtualText : sourceFile.sourceText,
-                );
+
+                let content = sourceFile.type === "virtual"
+                    ? sourceFile.virtualText
+                    : sourceFile.sourceText;
+
+                // Rewrite hardcoded absolute paths that reference the source
+                // tree (e.g. Nuxt-generated `.d.ts` files) so that they point
+                // to the cache copy instead.
+                if (sourceFile.type === "native" && content.includes(sourceRoot)) {
+                    content = content.split(sourceRoot).join(targetRoot);
+                }
+
+                await writeFile(targetPath, content);
+
+                // For virtual Vue files, also write a thin .d.vue.ts shim so that
+                // `allowArbitraryExtensions` + bundler `moduleResolution` can
+                // resolve `import X from './Foo.vue'`  →  `Foo.d.vue.ts`.
+                if (sourceFile.type === "virtual") {
+                    const ext = extname(path); // e.g. ".vue"
+                    const nameWithoutExt = basename(path, ext); // e.g. "Foo"
+                    const shimPath = join(dirname(toTargetPath(path)), `${nameWithoutExt}.d${ext}.ts`);
+                    const targetFileName = basename(targetPath);
+                    const shimContent = `export * from './${targetFileName}'\nexport { default } from './${targetFileName}'\n`;
+                    await writeFile(shimPath, shimContent);
+                }
             });
         }
 
@@ -119,11 +140,54 @@ export async function createProject(configPath: string): Promise<Project> {
             }
 
             const targetConfigPath = toTargetPath(configPath);
+
+            // Resolve `paths` and `baseUrl` from every config in the extends
+            // chain to absolute paths, so they remain valid after the tsconfig
+            // is placed in the (unrelated) target cache directory.
+            const resolvedPaths: Record<string, string[]> = {};
+            let resolvedBaseUrl: string | undefined;
+            // Process from deepest extended to root so that root config wins.
+            // IMPORTANT: use `parsed.extended` (each entry has only ITS OWN
+            // options, with the correct base directory) rather than
+            // `parsed.tsconfig` (the merged result whose relative paths would
+            // be resolved against the wrong directory).
+            for (const cfg of parsed.extended?.toReversed() ?? []) {
+                const cfgDir = dirname(cfg.tsconfigFile);
+                if (cfg.tsconfig.compilerOptions?.baseUrl !== undefined) {
+                    const abs = resolve(cfgDir, cfg.tsconfig.compilerOptions.baseUrl);
+                    resolvedBaseUrl = (abs.startsWith(sourceRoot + "/") || abs === sourceRoot)
+                        ? toTargetPath(abs)
+                        : abs;
+                }
+                for (const [pattern, values] of Object.entries(
+                    cfg.tsconfig.compilerOptions?.paths ?? {},
+                )) {
+                    resolvedPaths[pattern] = (values as string[]).map((v) => {
+                        const abs = v.startsWith("/") ? v : resolve(cfgDir, v);
+                        // Remap paths that fall inside the source tree so they
+                        // resolve to the corresponding cache location (where
+                        // the `.d.vue.ts` shims live).
+                        if (abs.startsWith(sourceRoot + "/") || abs === sourceRoot) {
+                            return toTargetPath(abs);
+                        }
+                        return abs;
+                    });
+                }
+            }
+
             const targetConfig: TSConfig = {
                 ...parsed.tsconfig,
                 extends: void 0,
                 compilerOptions: {
                     ...parsed.tsconfig.compilerOptions,
+                    baseUrl: resolvedBaseUrl,
+                    paths: Object.keys(resolvedPaths).length ? resolvedPaths : void 0,
+                    // Required so that `.d.vue.ts` shims can re-export from
+                    // the corresponding `.vue.ts` virtual file.
+                    allowImportingTsExtensions: true,
+                    // Required so that `import X from './Foo.vue'` resolves
+                    // to the `.d.vue.ts` shim file.
+                    allowArbitraryExtensions: true,
                     types: [
                         ...parsed.tsconfig.compilerOptions?.types ?? [],
                         ...types.map((name) => join(vueCompilerOptions.typesRoot, name)),
