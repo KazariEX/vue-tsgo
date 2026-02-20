@@ -246,7 +246,14 @@ export function* generateSetupBody(
             insert(callExp.end, ` as typeof ${names.dollars}.$slots)`);
         }
     }
-    for (const { callExp, arg } of scriptSetupRanges.useTemplateRef) {
+    for (const { callExp, arg, typeArg } of scriptSetupRanges.useTemplateRef) {
+        // When the user provides an explicit type argument
+        // (e.g. `useTemplateRef<ComponentPublicInstance>('ref')`), skip the
+        // `as ShallowRef<__VLS_TemplateRefs[…]>` cast — the user's type is
+        // authoritative and the cast can create circular inference in tsgo.
+        if (typeArg) {
+            continue;
+        }
         insert(callExp.start, `(`);
         insert(
             callExp.end,
