@@ -50,29 +50,55 @@ export async function createProject(configPath: string): Promise<Project> {
     const sourceToFiles = new Map<string, SourceFile>();
     const targetToFiles = new Map<string, SourceFile>();
 
-    for (const path of includes) {
-        if (sourceToFiles.has(path)) {
-            continue;
-        }
+    // Process files in parallel waves: read files, run codegen, resolve imports, repeat for newly discovered files
+    let pending = [...includes];
+    while (pending.length > 0) {
+        // Read all pending files in parallel
+        const entries = await Promise.all(
+            pending.map(async (path) => ({
+                path,
+                sourceText: await readFile(path, "utf-8").catch(() => void 0),
+            })),
+        );
 
-        const sourceText = await readFile(path, "utf-8").catch(() => void 0);
-        if (sourceText === void 0) {
-            includes.delete(path);
-            continue;
-        }
-
-        const sourceFile = createSourceFile(path, sourceText, vueCompilerOptions);
-        sourceToFiles.set(path, sourceFile);
-
-        for (const specifier of [
-            ...sourceFile.imports,
-            ...sourceFile.references.map((reference) => join(dirname(path), reference)),
-        ]) {
-            const result = await resolver.resolveFileAsync(path, specifier);
-            if (result?.path === void 0 || result.path.includes("/node_modules/")) {
+        // Process each file (sync codegen) and collect import specifiers
+        const importSpecs: { path: string; specifier: string }[] = [];
+        for (const { path, sourceText } of entries) {
+            if (sourceText === void 0) {
+                includes.delete(path);
                 continue;
             }
-            includes.add(result.path);
+
+            const sourceFile = createSourceFile(path, sourceText, vueCompilerOptions);
+            sourceToFiles.set(path, sourceFile);
+
+            for (const specifier of [
+                ...sourceFile.imports,
+                ...sourceFile.references.map((reference) => join(dirname(path), reference)),
+            ]) {
+                importSpecs.push({ path, specifier });
+            }
+        }
+
+        // Resolve all import specifiers in parallel
+        const resolved = await Promise.all(
+            importSpecs.map(async ({ path, specifier }) => {
+                const result = await resolver.resolveFileAsync(path, specifier);
+                return result?.path;
+            }),
+        );
+
+        // Collect newly discovered files for the next wave
+        pending = [];
+        for (const resolvedPath of resolved) {
+            if (
+                resolvedPath !== void 0
+                && !resolvedPath.includes("/node_modules/")
+                && !includes.has(resolvedPath)
+            ) {
+                includes.add(resolvedPath);
+                pending.push(resolvedPath);
+            }
         }
     }
 
@@ -92,25 +118,37 @@ export async function createProject(configPath: string): Promise<Project> {
 
     async function generate() {
         await rm(targetRoot, { recursive: true, force: true });
-        await mkdir(targetRoot, { recursive: true });
-        const tasks: (() => Promise<void>)[] = [];
+
+        // Pre-collect and create all unique target directories
+        const targetDirs = new Set<string>();
+        const fileEntries: { targetPath: string; content: string }[] = [];
 
         for (const path of includes) {
-            tasks.push(async () => {
-                const sourceFile = sourceToFiles.get(path)!;
-                const targetPath = sourceFile.type === "virtual"
-                    ? toTargetPath(path) + "." + toTargetLang(sourceFile.virtualLang)
-                    : toTargetPath(path);
-
-                await mkdir(dirname(targetPath), { recursive: true });
-                await writeFile(
-                    targetPath,
-                    sourceFile.type === "virtual" ? sourceFile.virtualText : sourceFile.sourceText,
-                );
+            const sourceFile = sourceToFiles.get(path)!;
+            const targetPath = sourceFile.type === "virtual"
+                ? toTargetPath(path) + "." + toTargetLang(sourceFile.virtualLang)
+                : toTargetPath(path);
+            targetDirs.add(dirname(targetPath));
+            fileEntries.push({
+                targetPath,
+                content: sourceFile.type === "virtual" ? sourceFile.virtualText : sourceFile.sourceText,
             });
         }
 
-        tasks.push(async () => {
+        // Add tsconfig directory
+        const targetConfigPath = toTargetPath(configPath);
+        targetDirs.add(dirname(targetConfigPath));
+
+        await Promise.all(
+            [...targetDirs].map((dir) => mkdir(dir, { recursive: true })),
+        );
+
+        // Write all files in parallel (directories already exist)
+        const tasks: Promise<void>[] = fileEntries.map(
+            ({ targetPath, content }) => writeFile(targetPath, content),
+        );
+
+        tasks.push((async () => {
             const types: string[] = ["template-helpers.d.ts"];
             if (!vueCompilerOptions.checkUnknownProps) {
                 types.push("props-fallback.d.ts");
@@ -138,7 +176,6 @@ export async function createProject(configPath: string): Promise<Project> {
                 }
             }
 
-            const targetConfigPath = toTargetPath(configPath);
             const targetConfig: TSConfig = {
                 ...parsed.tsconfig,
                 extends: void 0,
@@ -158,18 +195,15 @@ export async function createProject(configPath: string): Promise<Project> {
                 )),
             };
 
-            await mkdir(dirname(targetConfigPath), { recursive: true });
             await writeFile(targetConfigPath, JSON.stringify(targetConfig, null, 2));
-        });
+        })());
 
         for (const name of ["package.json", "node_modules"]) {
-            tasks.push(async () => {
-                const path = join(sourceRoot, name);
-                await symlink(path, toTargetPath(path)).catch(() => void 0);
-            });
+            const path = join(sourceRoot, name);
+            tasks.push(symlink(path, toTargetPath(path)).catch(() => void 0));
         }
 
-        await Promise.all(tasks.map((task) => task()));
+        await Promise.all(tasks);
     }
 
     async function runTsgo(args: string[] = []) {
