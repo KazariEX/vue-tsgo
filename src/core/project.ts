@@ -173,9 +173,11 @@ export async function createProject(configPath: string): Promise<Project> {
         const dirs = new Set<string>();
         const tasks: (() => Promise<void>)[] = [];
 
+        // 1. tsconfig
         dirs.add(dirname(targetConfigPath));
         tasks.push(() => writeFile(targetConfigPath, JSON.stringify(targetConfig, null, 2)));
 
+        // 2. source files
         for (const path of includes) {
             const sourceFile = sourceToFiles.get(path)!;
             const targetPath = sourceFile.type === "virtual"
@@ -189,6 +191,7 @@ export async function createProject(configPath: string): Promise<Project> {
             ));
         }
 
+        // 3. node_modules (symlink)
         for (const name of ["package.json", "node_modules"]) {
             const path = join(sourceRoot, name);
             tasks.push(() => symlink(path, toTargetPath(path)).catch(() => void 0));
