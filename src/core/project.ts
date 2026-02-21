@@ -141,32 +141,17 @@ export async function createProject(configPath: string): Promise<Project> {
 
             const targetConfigPath = toTargetPath(configPath);
 
-            // Resolve `paths` and `baseUrl` from every config in the extends
-            // chain to absolute paths, so they remain valid after the tsconfig
-            // is placed in the (unrelated) target cache directory.
             const resolvedPaths: Record<string, string[]> = {};
-            let resolvedBaseUrl: string | undefined;
-            // Process from deepest extended to root so that root config wins.
-            // IMPORTANT: use `parsed.extended` (each entry has only ITS OWN
-            // options, with the correct base directory) rather than
-            // `parsed.tsconfig` (the merged result whose relative paths would
-            // be resolved against the wrong directory).
             for (const cfg of parsed.extended?.toReversed() ?? []) {
                 const cfgDir = dirname(cfg.tsconfigFile);
-                if (cfg.tsconfig.compilerOptions?.baseUrl !== undefined) {
-                    const abs = resolve(cfgDir, cfg.tsconfig.compilerOptions.baseUrl);
-                    resolvedBaseUrl = (abs.startsWith(sourceRoot + "/") || abs === sourceRoot)
-                        ? toTargetPath(abs)
-                        : abs;
-                }
+                const effectiveBaseDir = cfg.tsconfig.compilerOptions?.baseUrl !== undefined
+                    ? resolve(cfgDir, cfg.tsconfig.compilerOptions.baseUrl)
+                    : cfgDir;
                 for (const [pattern, values] of Object.entries(
                     cfg.tsconfig.compilerOptions?.paths ?? {},
                 )) {
                     resolvedPaths[pattern] = (values as string[]).map((v) => {
-                        const abs = v.startsWith("/") ? v : resolve(cfgDir, v);
-                        // Remap paths that fall inside the source tree so they
-                        // resolve to the corresponding cache location (where
-                        // the `.d.vue.ts` shims live).
+                        const abs = v.startsWith("/") ? v : resolve(effectiveBaseDir, v);
                         if (abs.startsWith(sourceRoot + "/") || abs === sourceRoot) {
                             return toTargetPath(abs);
                         }
@@ -180,7 +165,6 @@ export async function createProject(configPath: string): Promise<Project> {
                 extends: void 0,
                 compilerOptions: {
                     ...parsed.tsconfig.compilerOptions,
-                    baseUrl: resolvedBaseUrl,
                     paths: Object.keys(resolvedPaths).length ? resolvedPaths : void 0,
                     // Required so that `.d.vue.ts` shims can re-export from
                     // the corresponding `.vue.ts` virtual file.
