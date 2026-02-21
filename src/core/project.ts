@@ -124,16 +124,11 @@ export async function createProject(configPath: string): Promise<Project> {
                 [`${sourceRoot}/*`]: [`${targetRoot}/*`],
             };
             for (const cfg of parsed.extended?.toReversed() ?? []) {
-                const cfgDir = dirname(cfg.tsconfigFile);
-                // Although `baseUrl` is deprecated, leaving for backward compatibility
-                const effectiveBaseDir = cfg.tsconfig.compilerOptions?.baseUrl
-                    ? resolve(cfgDir, cfg.tsconfig.compilerOptions.baseUrl)
-                    : cfgDir;
                 for (const [pattern, values] of Object.entries(
                     cfg.tsconfig.compilerOptions?.paths ?? {},
                 )) {
                     resolvedPaths[pattern] = (values as string[]).map((v) => {
-                        const abs = v.startsWith("/") ? v : resolve(effectiveBaseDir, v);
+                        const abs = v.startsWith("/") ? v : resolve(cfg.tsconfigFile, v);
                         if (abs.startsWith(sourceRoot + "/") || abs === sourceRoot) {
                             return toTargetPath(abs);
                         }
