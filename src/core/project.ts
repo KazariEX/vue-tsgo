@@ -50,29 +50,57 @@ export async function createProject(configPath: string): Promise<Project> {
     const sourceToFiles = new Map<string, SourceFile>();
     const targetToFiles = new Map<string, SourceFile>();
 
-    for (const path of includes) {
-        if (sourceToFiles.has(path)) {
-            continue;
-        }
+    // process files in parallel waves:
+    // read files, run codegen, resolve imports, repeat for newly discovered files
+    let pending = [...includes];
+    while (pending.length) {
+        // read all pending files in parallel
+        const entries = await Promise.all(
+            pending.map(async (path) => ({
+                path,
+                sourceText: await readFile(path, "utf-8").catch(() => void 0),
+            })),
+        );
 
-        const sourceText = await readFile(path, "utf-8").catch(() => void 0);
-        if (sourceText === void 0) {
-            includes.delete(path);
-            continue;
-        }
-
-        const sourceFile = createSourceFile(path, sourceText, vueCompilerOptions);
-        sourceToFiles.set(path, sourceFile);
-
-        for (const specifier of [
-            ...sourceFile.imports,
-            ...sourceFile.references.map((reference) => join(dirname(path), reference)),
-        ]) {
-            const result = await resolver.resolveFileAsync(path, specifier);
-            if (result?.path === void 0 || result.path.includes("/node_modules/")) {
+        // process each file (sync codegen) and collect import specifiers
+        const importSpecs: { path: string; specifier: string }[] = [];
+        for (const { path, sourceText } of entries) {
+            if (sourceText === void 0) {
+                includes.delete(path);
                 continue;
             }
-            includes.add(result.path);
+
+            const sourceFile = createSourceFile(path, sourceText, vueCompilerOptions);
+            sourceToFiles.set(path, sourceFile);
+
+            for (const specifier of [
+                ...sourceFile.imports,
+                ...sourceFile.references.map((reference) => join(dirname(path), reference)),
+            ]) {
+                importSpecs.push({ path, specifier });
+            }
+        }
+
+        // resolve all import specifiers in parallel
+        const resolved = await Promise.all(
+            importSpecs.map(async ({ path, specifier }) => {
+                const result = await resolver.resolveFileAsync(path, specifier);
+                return result?.path;
+            }),
+        );
+
+        // collect newly discovered files for the next wave
+        pending = [];
+        for (const resolvedPath of resolved) {
+            if (
+                resolvedPath === void 0 ||
+                resolvedPath.includes("/node_modules/") ||
+                includes.has(resolvedPath)
+            ) {
+                continue;
+            }
+            includes.add(resolvedPath);
+            pending.push(resolvedPath);
         }
     }
 
@@ -92,89 +120,87 @@ export async function createProject(configPath: string): Promise<Project> {
 
     async function generate() {
         await rm(targetRoot, { recursive: true, force: true });
-        await mkdir(targetRoot, { recursive: true });
+
+        // global types for Vue SFCs
+        const types: string[] = ["template-helpers.d.ts"];
+        if (!vueCompilerOptions.checkUnknownProps) {
+            types.push("props-fallback.d.ts");
+        }
+        if (vueCompilerOptions.lib === "vue" && vueCompilerOptions.target < 3.5) {
+            types.push("vue-3.4-shims.d.ts");
+        }
+
+        const resolvedPaths: Record<string, string[]> = {
+            [`${sourceRoot}/*`]: [`${targetRoot}/*`],
+        };
+
+        for (const config of parsed.extended?.toReversed() ?? [parsed]) {
+            const configDir = dirname(config.tsconfigFile);
+
+            for (const [pattern, paths] of Object.entries<string[]>(
+                config.tsconfig.compilerOptions?.paths ?? {},
+            )) {
+                resolvedPaths[pattern] = paths.map((path) => {
+                    const absolutePath = isAbsolute(path) ? path : join(configDir, path);
+                    return relative(sourceRoot, absolutePath).startsWith("..")
+                        ? absolutePath
+                        : toTargetPath(absolutePath);
+                });
+            }
+        }
+
+        const targetConfigPath = toTargetPath(configPath);
+        const targetConfig: TSConfig = {
+            ...parsed.tsconfig,
+            extends: void 0,
+            compilerOptions: {
+                ...parsed.tsconfig.compilerOptions,
+                paths: resolvedPaths,
+                types: [
+                    ...parsed.tsconfig.compilerOptions?.types ?? [],
+                    ...types.map((name) => join(vueCompilerOptions.typesRoot, name)),
+                ],
+            },
+            include: parsed.tsconfig.include?.map((path: string) => (
+                isAbsolute(path) ? relative(configRoot, path) : path
+            )),
+            exclude: parsed.tsconfig.exclude?.map((path: string) => (
+                isAbsolute(path) ? relative(configRoot, path) : path
+            )),
+        };
+
+        // pre-collect and create all target directories
+        const dirs = new Set<string>();
         const tasks: (() => Promise<void>)[] = [];
 
+        // 1. tsconfig
+        dirs.add(dirname(targetConfigPath));
+        tasks.push(() => writeFile(targetConfigPath, JSON.stringify(targetConfig, null, 2)));
+
+        // 2. source files
         for (const path of includes) {
-            tasks.push(async () => {
-                const sourceFile = sourceToFiles.get(path)!;
-                const targetPath = sourceFile.type === "virtual"
-                    ? toTargetPath(path) + "." + toTargetLang(sourceFile.virtualLang)
-                    : toTargetPath(path);
+            const sourceFile = sourceToFiles.get(path)!;
+            const targetPath = sourceFile.type === "virtual"
+                ? toTargetPath(path) + "." + toTargetLang(sourceFile.virtualLang)
+                : toTargetPath(path);
 
-                await mkdir(dirname(targetPath), { recursive: true });
-                await writeFile(
-                    targetPath,
-                    sourceFile.type === "virtual" ? sourceFile.virtualText : sourceFile.sourceText,
-                );
-            });
+            dirs.add(dirname(targetPath));
+            tasks.push(() => writeFile(
+                targetPath,
+                sourceFile.type === "virtual" ? sourceFile.virtualText : sourceFile.sourceText,
+            ));
         }
 
-        tasks.push(async () => {
-            const types: string[] = ["template-helpers.d.ts"];
-            if (!vueCompilerOptions.checkUnknownProps) {
-                types.push("props-fallback.d.ts");
-            }
-            if (vueCompilerOptions.lib === "vue" && vueCompilerOptions.target < 3.5) {
-                types.push("vue-3.4-shims.d.ts");
-            }
-
-            const resolvedPaths: Record<string, string[]> = {
-                [`${sourceRoot}/*`]: [`${targetRoot}/*`],
-            };
-
-            for (const config of parsed.extended?.toReversed() ?? [parsed]) {
-                const configDir = dirname(config.tsconfigFile);
-
-                for (const [pattern, paths] of Object.entries<string[]>(
-                    config.tsconfig.compilerOptions?.paths ?? {},
-                )) {
-                    resolvedPaths[pattern] = paths.map((path) => {
-                        const absolutePath = isAbsolute(path) ? path : join(configDir, path);
-                        return relative(sourceRoot, absolutePath).startsWith("..")
-                            ? absolutePath
-                            : toTargetPath(absolutePath);
-                    });
-                }
-            }
-
-            const targetConfigPath = toTargetPath(configPath);
-            const targetConfig: TSConfig = {
-                ...parsed.tsconfig,
-                extends: void 0,
-                compilerOptions: {
-                    ...parsed.tsconfig.compilerOptions,
-                    paths: resolvedPaths,
-                    types: [
-                        ...parsed.tsconfig.compilerOptions?.types ?? [],
-                        ...types.map((name) => join(vueCompilerOptions.typesRoot, name)),
-                    ],
-                },
-                references: parsed.tsconfig.references?.map((reference: { path: string }) => ({
-                    ...reference,
-                    path: isAbsolute(reference.path)
-                        ? reference.path
-                        : join(configRoot, reference.path),
-                })),
-                include: parsed.tsconfig.include?.map((path: string) => (
-                    isAbsolute(path) ? relative(configRoot, path) : path
-                )),
-                exclude: parsed.tsconfig.exclude?.map((path: string) => (
-                    isAbsolute(path) ? relative(configRoot, path) : path
-                )),
-            };
-
-            await mkdir(dirname(targetConfigPath), { recursive: true });
-            await writeFile(targetConfigPath, JSON.stringify(targetConfig, null, 2));
-        });
-
+        // 3. node_modules (symlink)
         for (const name of ["package.json", "node_modules"]) {
-            tasks.push(async () => {
-                const path = join(sourceRoot, name);
-                await symlink(path, toTargetPath(path)).catch(() => void 0);
-            });
+            const path = join(sourceRoot, name);
+            tasks.push(() => symlink(path, toTargetPath(path)).catch(() => void 0));
         }
 
+        // write all directories first
+        await Promise.all([...dirs].map((dir) => mkdir(dir, { recursive: true })));
+
+        // write all files in parallel
         await Promise.all(tasks.map((task) => task()));
     }
 
