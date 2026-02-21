@@ -125,6 +125,7 @@ export async function createProject(configPath: string): Promise<Project> {
             };
             for (const cfg of parsed.extended?.toReversed() ?? []) {
                 const cfgDir = dirname(cfg.tsconfigFile);
+                // Although `baseUrl` is deprecated, leaving for backward compatibility
                 const effectiveBaseDir = cfg.tsconfig.compilerOptions?.baseUrl
                     ? resolve(cfgDir, cfg.tsconfig.compilerOptions.baseUrl)
                     : cfgDir;
