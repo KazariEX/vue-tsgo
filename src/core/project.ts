@@ -46,7 +46,7 @@ export async function createProject(configPath: string): Promise<Project> {
     }
     const vueCompilerOptions = builder.build();
 
-    const includes = await resolveFiles(parsed.tsconfig, configRoot, vueCompilerOptions);
+    const includes = await resolveFiles(parsed.tsconfig, configPath, vueCompilerOptions);
     const sourceToFiles = new Map<string, SourceFile>();
     const targetToFiles = new Map<string, SourceFile>();
 
@@ -335,7 +335,8 @@ export async function createProject(configPath: string): Promise<Project> {
     };
 }
 
-async function resolveFiles(config: TSConfig, configRoot: string, vueCompilerOptions: VueCompilerOptions) {
+async function resolveFiles(config: TSConfig, configPath: string, vueCompilerOptions: VueCompilerOptions) {
+    const configRoot = dirname(configPath);
     const extensions = new Set([
         ...[".ts", ".tsx", ".js", ".jsx", ".json", ".mjs", ".mts", ".cjs", ".cts"],
         ...vueCompilerOptions.extensions,
@@ -364,7 +365,9 @@ async function resolveFiles(config: TSConfig, configRoot: string, vueCompilerOpt
 
     return new Set(
         includes.flat().filter((path) => (
-            excludes.every((match) => !match(path)) && extensions.has(extname(path))
+            path !== configPath &&
+            extensions.has(extname(path)) &&
+            excludes.every((match) => !match(path))
         )),
     );
 
