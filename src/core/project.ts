@@ -128,7 +128,7 @@ export async function createProject(configPath: string): Promise<Project> {
                     cfg.tsconfig.compilerOptions?.paths ?? {},
                 )) {
                     resolvedPaths[pattern] = (values as string[]).map((v) => {
-                        const abs = v.startsWith("/") ? v : resolve(cfg.tsconfigFile, v);
+                        const abs = v.startsWith("/") ? v : resolve(dirname(cfg.tsconfigFile), v);
                         if (abs.startsWith(sourceRoot + "/") || abs === sourceRoot) {
                             return toTargetPath(abs);
                         }
