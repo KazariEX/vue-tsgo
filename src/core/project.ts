@@ -161,6 +161,12 @@ export async function createProject(configPath: string): Promise<Project> {
                     ...types.map((name) => join(vueCompilerOptions.typesRoot, name)),
                 ],
             },
+            references: parsed.tsconfig.references?.map((reference: { path: string }) => ({
+                ...reference,
+                path: isAbsolute(reference.path)
+                    ? reference.path
+                    : join(configRoot, reference.path),
+            })),
             include: parsed.tsconfig.include?.map((path: string) => (
                 isAbsolute(path) ? relative(configRoot, path) : path
             )),
