@@ -50,10 +50,11 @@ export async function createProject(configPath: string): Promise<Project> {
     const sourceToFiles = new Map<string, SourceFile>();
     const targetToFiles = new Map<string, SourceFile>();
 
-    // Process files in parallel waves: read files, run codegen, resolve imports, repeat for newly discovered files
+    // process files in parallel waves:
+    // read files, run codegen, resolve imports, repeat for newly discovered files
     let pending = [...includes];
-    while (pending.length > 0) {
-        // Read all pending files in parallel
+    while (pending.length) {
+        // read all pending files in parallel
         const entries = await Promise.all(
             pending.map(async (path) => ({
                 path,
@@ -61,7 +62,7 @@ export async function createProject(configPath: string): Promise<Project> {
             })),
         );
 
-        // Process each file (sync codegen) and collect import specifiers
+        // process each file (sync codegen) and collect import specifiers
         const importSpecs: { path: string; specifier: string }[] = [];
         for (const { path, sourceText } of entries) {
             if (sourceText === void 0) {
@@ -80,7 +81,7 @@ export async function createProject(configPath: string): Promise<Project> {
             }
         }
 
-        // Resolve all import specifiers in parallel
+        // resolve all import specifiers in parallel
         const resolved = await Promise.all(
             importSpecs.map(async ({ path, specifier }) => {
                 const result = await resolver.resolveFileAsync(path, specifier);
@@ -88,17 +89,18 @@ export async function createProject(configPath: string): Promise<Project> {
             }),
         );
 
-        // Collect newly discovered files for the next wave
+        // collect newly discovered files for the next wave
         pending = [];
         for (const resolvedPath of resolved) {
             if (
-                resolvedPath !== void 0
-                && !resolvedPath.includes("/node_modules/")
-                && !includes.has(resolvedPath)
+                resolvedPath === void 0 ||
+                resolvedPath.includes("/node_modules/") ||
+                includes.has(resolvedPath)
             ) {
-                includes.add(resolvedPath);
-                pending.push(resolvedPath);
+                continue;
             }
+            includes.add(resolvedPath);
+            pending.push(resolvedPath);
         }
     }
 
