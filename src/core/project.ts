@@ -3,7 +3,7 @@ import { mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises"
 import { stripVTControlCharacters, styleText } from "node:util";
 import * as pkg from "empathic/package";
 import { ResolverFactory } from "oxc-resolver";
-import { basename, dirname, extname, join, relative, resolve } from "pathe";
+import { dirname, extname, isAbsolute, join, relative, resolve } from "pathe";
 import picomatch from "picomatch";
 import { exec } from "tinyexec";
 import { glob } from "tinyglobby";
@@ -153,7 +153,12 @@ export async function createProject(configPath: string): Promise<Project> {
                         ...types.map((name) => join(vueCompilerOptions.typesRoot, name)),
                     ],
                 },
-                include: parsed.tsconfig.include?.map(toTargetPath),
+                include: parsed.tsconfig.include?.map((path: string) => (
+                    isAbsolute(path) ? relative(configRoot, path) : path
+                )),
+                exclude: parsed.tsconfig.exclude?.map((path: string) => (
+                    isAbsolute(path) ? relative(configRoot, path) : path
+                )),
             };
 
             await mkdir(dirname(targetConfigPath), { recursive: true });
