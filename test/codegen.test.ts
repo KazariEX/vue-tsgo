@@ -91,3 +91,41 @@ describe("interpolation", () => {
         ).toContain("as typeof __VLS_ctx.bar");
     });
 });
+
+describe("metadata", () => {
+    it("import and re-export detection", () => {
+        const src = /* ts */`
+            import { foo } from "./foo";
+            import * as bar from "./bar";
+
+            export { default } from "./utils";
+            export * from "./components";
+            export * as prose from "./prose";
+        `;
+
+        const sourceFile = createSourceFile("dummy.ts", src, vueCompilerOptions);
+        expect(sourceFile.imports).toMatchInlineSnapshot(`
+          [
+            "./foo",
+            "./bar",
+            "./utils",
+            "./components",
+            "./prose",
+          ]
+        `);
+    });
+
+    it("reference detection", () => {
+        const src = /* ts */`
+            /// <reference path="./foo" />
+            /// <reference types="vue" />
+        `;
+
+        const sourceFile = createSourceFile("dummy.ts", src, vueCompilerOptions);
+        expect(sourceFile.references).toMatchInlineSnapshot(`
+          [
+            "./foo",
+          ]
+        `);
+    });
+});
