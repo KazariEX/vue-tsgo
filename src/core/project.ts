@@ -16,10 +16,25 @@ import { createCompilerOptionsBuilder } from "./compilerOptions";
 import { isVerificationEnabled } from "./shared";
 
 export interface Project {
+    tsconfigPath: string;
+    generate: () => Promise<void>;
     runTsgo: (args?: string[]) => Promise<void>;
 }
 
-export async function createProject(configPath: string): Promise<Project> {
+function resolveReferencePath(reference: { path: string }, configRoot: string): string {
+    const referencePath = isAbsolute(reference.path)
+        ? reference.path
+        : join(configRoot, reference.path);
+
+    return referencePath.endsWith(".json")
+        ? referencePath
+        : join(referencePath, "tsconfig.json");
+}
+
+export async function createProject(
+    configPath: string,
+    parentConfigs: Set<string> = new Set(),
+): Promise<Project> {
     const configRoot = dirname(configPath);
     const configHash = createHash("sha256").update(configPath).digest("hex").slice(0, 8);
 
@@ -30,7 +45,20 @@ export async function createProject(configPath: string): Promise<Project> {
         throw new Error("[Vue] Failed to find a target directory.");
     }
 
+    parentConfigs.add(configPath);
+
     const parsed = await parse(configPath);
+    const referencedProjects = (await Promise.all(
+        parsed.tsconfig.references?.map((reference: { path: string }) => {
+            const referencePath = resolveReferencePath(reference, configRoot);
+            if (parentConfigs.has(referencePath)) {
+                // circular reference detected, skip to avoid infinite recursion
+                return null;
+            }
+            // pass a per-branch copy so sibling references don't pollute each other's ancestor chain
+            return createProject(referencePath, new Set(parentConfigs));
+        }) ?? [],
+    )).filter((p): p is Project => p !== null);
     const builder = createCompilerOptionsBuilder();
     const resolver = new ResolverFactory({
         tsconfig: {
@@ -118,7 +146,9 @@ export async function createProject(configPath: string): Promise<Project> {
         targetToFiles.set(targetPath, sourceFile);
     }
 
+    const tsconfigPath = toTargetPath(configPath);
     async function generate() {
+        await Promise.all(referencedProjects.map((project) => project.generate()));
         await rm(targetRoot, { recursive: true, force: true });
 
         // global types for Vue SFCs
@@ -149,7 +179,6 @@ export async function createProject(configPath: string): Promise<Project> {
             }
         }
 
-        const tsconfigPath = toTargetPath(configPath);
         const tsconfigDir = dirname(tsconfigPath);
         const tsconfig: TSConfig = {
             ...parsed.tsconfig,
@@ -162,11 +191,8 @@ export async function createProject(configPath: string): Promise<Project> {
                     ...types.map((name) => join(vueCompilerOptions.typesRoot, name)),
                 ],
             },
-            references: parsed.tsconfig.references?.map((reference: { path: string }) => ({
-                ...reference,
-                path: isAbsolute(reference.path)
-                    ? reference.path
-                    : join(configRoot, reference.path),
+            references: referencedProjects.map((project) => ({
+                path: toTargetPath(project.tsconfigPath),
             })),
             // provide a explicit file list to avoid potential edge cases of path resolution
             files: [...targetToFiles.keys()].map((path) => relative(tsconfigDir, path)).sort(),
@@ -331,6 +357,8 @@ export async function createProject(configPath: string): Promise<Project> {
     }
 
     return {
+        tsconfigPath,
+        generate,
         runTsgo,
     };
 }
