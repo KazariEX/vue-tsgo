@@ -92,6 +92,7 @@ export async function createProject(configPath: string): Promise<Project> {
 
     async function generate() {
         await rm(targetRoot, { recursive: true, force: true });
+        await mkdir(targetRoot, { recursive: true });
         const tasks: (() => Promise<void>)[] = [];
 
         for (const path of includes) {
@@ -118,12 +119,32 @@ export async function createProject(configPath: string): Promise<Project> {
                 types.push("vue-3.4-shims.d.ts");
             }
 
+            const resolvedPaths: Record<string, string[]> = {
+                [`${sourceRoot}/*`]: [`${targetRoot}/*`],
+            };
+
+            for (const config of parsed.extended?.toReversed() ?? [parsed]) {
+                const configDir = dirname(config.tsconfigFile);
+
+                for (const [pattern, paths] of Object.entries<string[]>(
+                    config.tsconfig.compilerOptions?.paths ?? {},
+                )) {
+                    resolvedPaths[pattern] = paths.map((path) => {
+                        const absolutePath = isAbsolute(path) ? path : join(configDir, path);
+                        return relative(sourceRoot, absolutePath).startsWith("..")
+                            ? absolutePath
+                            : toTargetPath(absolutePath);
+                    });
+                }
+            }
+
             const targetConfigPath = toTargetPath(configPath);
             const targetConfig: TSConfig = {
                 ...parsed.tsconfig,
                 extends: void 0,
                 compilerOptions: {
                     ...parsed.tsconfig.compilerOptions,
+                    paths: resolvedPaths,
                     types: [
                         ...parsed.tsconfig.compilerOptions?.types ?? [],
                         ...types.map((name) => join(vueCompilerOptions.typesRoot, name)),
