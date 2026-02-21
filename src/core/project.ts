@@ -118,25 +118,26 @@ export async function createProject(configPath: string): Promise<Project> {
                 types.push("vue-3.4-shims.d.ts");
             }
 
-            const targetConfigPath = toTargetPath(configPath);
-
             const resolvedPaths: Record<string, string[]> = {
                 [`${sourceRoot}/*`]: [`${targetRoot}/*`],
             };
-            for (const cfg of parsed.extended?.toReversed() ?? []) {
-                for (const [pattern, values] of Object.entries(
-                    cfg.tsconfig.compilerOptions?.paths ?? {},
+
+            for (const config of parsed.extended?.toReversed() ?? [parsed]) {
+                const configDir = dirname(config.tsconfigFile);
+
+                for (const [pattern, paths] of Object.entries<string[]>(
+                    config.tsconfig.compilerOptions?.paths ?? {},
                 )) {
-                    resolvedPaths[pattern] = (values as string[]).map((v) => {
-                        const abs = v.startsWith("/") ? v : resolve(dirname(cfg.tsconfigFile), v);
-                        if (abs.startsWith(sourceRoot + "/") || abs === sourceRoot) {
-                            return toTargetPath(abs);
-                        }
-                        return abs;
+                    resolvedPaths[pattern] = paths.map((path) => {
+                        const absolutePath = isAbsolute(path) ? path : join(configDir, path);
+                        return relative(sourceRoot, absolutePath).startsWith("..")
+                            ? absolutePath
+                            : toTargetPath(absolutePath);
                     });
                 }
             }
 
+            const targetConfigPath = toTargetPath(configPath);
             const targetConfig: TSConfig = {
                 ...parsed.tsconfig,
                 extends: void 0,
