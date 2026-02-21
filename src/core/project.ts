@@ -115,18 +115,6 @@ export async function createProject(configPath: string): Promise<Project> {
                 }
 
                 await writeFile(targetPath, content);
-
-                // For virtual Vue files, also write a thin .d.vue.ts shim so that
-                // `allowArbitraryExtensions` + bundler `moduleResolution` can
-                // resolve `import X from './Foo.vue'`  →  `Foo.d.vue.ts`.
-                if (sourceFile.type === "virtual") {
-                    const ext = extname(path); // e.g. ".vue"
-                    const nameWithoutExt = basename(path, ext); // e.g. "Foo"
-                    const shimPath = join(dirname(toTargetPath(path)), `${nameWithoutExt}.d${ext}.ts`);
-                    const targetFileName = basename(targetPath);
-                    const shimContent = `export * from './${targetFileName}'\nexport { default } from './${targetFileName}'\n`;
-                    await writeFile(shimPath, shimContent);
-                }
             });
         }
 
