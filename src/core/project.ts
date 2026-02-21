@@ -92,6 +92,7 @@ export async function createProject(configPath: string): Promise<Project> {
 
     async function generate() {
         await rm(targetRoot, { recursive: true, force: true });
+        await mkdir(targetRoot, { recursive: true });
         const tasks: (() => Promise<void>)[] = [];
 
         for (const path of includes) {
