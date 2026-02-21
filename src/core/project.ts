@@ -102,19 +102,10 @@ export async function createProject(configPath: string): Promise<Project> {
                     : toTargetPath(path);
 
                 await mkdir(dirname(targetPath), { recursive: true });
-
-                let content = sourceFile.type === "virtual"
-                    ? sourceFile.virtualText
-                    : sourceFile.sourceText;
-
-                // Rewrite hardcoded absolute paths that reference the source
-                // tree (e.g. Nuxt-generated `.d.ts` files) so that they point
-                // to the cache copy instead.
-                if (sourceFile.type === "native" && content.includes(sourceRoot)) {
-                    content = content.split(sourceRoot).join(targetRoot);
-                }
-
-                await writeFile(targetPath, content);
+                await writeFile(
+                    targetPath,
+                    sourceFile.type === "virtual" ? sourceFile.virtualText : sourceFile.sourceText,
+                );
             });
         }
 
@@ -129,10 +120,12 @@ export async function createProject(configPath: string): Promise<Project> {
 
             const targetConfigPath = toTargetPath(configPath);
 
-            const resolvedPaths: Record<string, string[]> = {};
+            const resolvedPaths: Record<string, string[]> = {
+                [`${sourceRoot}/*`]: [`${targetRoot}/*`],
+            };
             for (const cfg of parsed.extended?.toReversed() ?? []) {
                 const cfgDir = dirname(cfg.tsconfigFile);
-                const effectiveBaseDir = cfg.tsconfig.compilerOptions?.baseUrl !== undefined
+                const effectiveBaseDir = cfg.tsconfig.compilerOptions?.baseUrl
                     ? resolve(cfgDir, cfg.tsconfig.compilerOptions.baseUrl)
                     : cfgDir;
                 for (const [pattern, values] of Object.entries(
@@ -153,13 +146,7 @@ export async function createProject(configPath: string): Promise<Project> {
                 extends: void 0,
                 compilerOptions: {
                     ...parsed.tsconfig.compilerOptions,
-                    paths: Object.keys(resolvedPaths).length ? resolvedPaths : void 0,
-                    // Required so that `.d.vue.ts` shims can re-export from
-                    // the corresponding `.vue.ts` virtual file.
-                    allowImportingTsExtensions: true,
-                    // Required so that `import X from './Foo.vue'` resolves
-                    // to the `.d.vue.ts` shim file.
-                    allowArbitraryExtensions: true,
+                    paths: resolvedPaths,
                     types: [
                         ...parsed.tsconfig.compilerOptions?.types ?? [],
                         ...types.map((name) => join(vueCompilerOptions.typesRoot, name)),
