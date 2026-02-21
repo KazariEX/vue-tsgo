@@ -149,8 +149,9 @@ export async function createProject(configPath: string): Promise<Project> {
             }
         }
 
-        const targetConfigPath = toTargetPath(configPath);
-        const targetConfig: TSConfig = {
+        const tsconfigPath = toTargetPath(configPath);
+        const tsconfigDir = dirname(tsconfigPath);
+        const tsconfig: TSConfig = {
             ...parsed.tsconfig,
             extends: void 0,
             compilerOptions: {
@@ -167,12 +168,10 @@ export async function createProject(configPath: string): Promise<Project> {
                     ? reference.path
                     : join(configRoot, reference.path),
             })),
-            include: parsed.tsconfig.include?.map((path: string) => (
-                isAbsolute(path) ? relative(configRoot, path) : path
-            )),
-            exclude: parsed.tsconfig.exclude?.map((path: string) => (
-                isAbsolute(path) ? relative(configRoot, path) : path
-            )),
+            // provide a explicit file list to avoid potential edge cases of path resolution
+            files: [...targetToFiles.keys()].map((path) => relative(tsconfigDir, path)).sort(),
+            include: void 0,
+            exclude: void 0,
         };
 
         // pre-collect and create all target directories
@@ -180,8 +179,8 @@ export async function createProject(configPath: string): Promise<Project> {
         const tasks: (() => Promise<void>)[] = [];
 
         // 1. tsconfig
-        dirs.add(dirname(targetConfigPath));
-        tasks.push(() => writeFile(targetConfigPath, JSON.stringify(targetConfig, null, 2)));
+        dirs.add(tsconfigDir);
+        tasks.push(() => writeFile(tsconfigPath, JSON.stringify(tsconfig, null, 2)));
 
         // 2. source files
         for (const path of includes) {
