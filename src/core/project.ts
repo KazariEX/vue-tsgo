@@ -119,91 +119,84 @@ export async function createProject(configPath: string): Promise<Project> {
     async function generate() {
         await rm(targetRoot, { recursive: true, force: true });
 
-        // Pre-collect and create all unique target directories
-        const targetDirs = new Set<string>();
-        const fileEntries: { targetPath: string; content: string }[] = [];
+        // global types for Vue SFCs
+        const types: string[] = ["template-helpers.d.ts"];
+        if (!vueCompilerOptions.checkUnknownProps) {
+            types.push("props-fallback.d.ts");
+        }
+        if (vueCompilerOptions.lib === "vue" && vueCompilerOptions.target < 3.5) {
+            types.push("vue-3.4-shims.d.ts");
+        }
+
+        const resolvedPaths: Record<string, string[]> = {
+            [`${sourceRoot}/*`]: [`${targetRoot}/*`],
+        };
+
+        for (const config of parsed.extended?.toReversed() ?? [parsed]) {
+            const configDir = dirname(config.tsconfigFile);
+
+            for (const [pattern, paths] of Object.entries<string[]>(
+                config.tsconfig.compilerOptions?.paths ?? {},
+            )) {
+                resolvedPaths[pattern] = paths.map((path) => {
+                    const absolutePath = isAbsolute(path) ? path : join(configDir, path);
+                    return relative(sourceRoot, absolutePath).startsWith("..")
+                        ? absolutePath
+                        : toTargetPath(absolutePath);
+                });
+            }
+        }
+
+        const targetConfigPath = toTargetPath(configPath);
+        const targetConfig: TSConfig = {
+            ...parsed.tsconfig,
+            extends: void 0,
+            compilerOptions: {
+                ...parsed.tsconfig.compilerOptions,
+                paths: resolvedPaths,
+                types: [
+                    ...parsed.tsconfig.compilerOptions?.types ?? [],
+                    ...types.map((name) => join(vueCompilerOptions.typesRoot, name)),
+                ],
+            },
+            include: parsed.tsconfig.include?.map((path: string) => (
+                isAbsolute(path) ? relative(configRoot, path) : path
+            )),
+            exclude: parsed.tsconfig.exclude?.map((path: string) => (
+                isAbsolute(path) ? relative(configRoot, path) : path
+            )),
+        };
+
+        // pre-collect and create all target directories
+        const dirs = new Set<string>();
+        const tasks: (() => Promise<void>)[] = [];
+
+        dirs.add(dirname(targetConfigPath));
+        tasks.push(() => writeFile(targetConfigPath, JSON.stringify(targetConfig, null, 2)));
 
         for (const path of includes) {
             const sourceFile = sourceToFiles.get(path)!;
             const targetPath = sourceFile.type === "virtual"
                 ? toTargetPath(path) + "." + toTargetLang(sourceFile.virtualLang)
                 : toTargetPath(path);
-            targetDirs.add(dirname(targetPath));
-            fileEntries.push({
+
+            dirs.add(dirname(targetPath));
+            tasks.push(() => writeFile(
                 targetPath,
-                content: sourceFile.type === "virtual" ? sourceFile.virtualText : sourceFile.sourceText,
-            });
+                sourceFile.type === "virtual" ? sourceFile.virtualText : sourceFile.sourceText,
+            ));
         }
-
-        // Add tsconfig directory
-        const targetConfigPath = toTargetPath(configPath);
-        targetDirs.add(dirname(targetConfigPath));
-
-        await Promise.all(
-            [...targetDirs].map((dir) => mkdir(dir, { recursive: true })),
-        );
-
-        // Write all files in parallel (directories already exist)
-        const tasks: Promise<void>[] = fileEntries.map(
-            ({ targetPath, content }) => writeFile(targetPath, content),
-        );
-
-        tasks.push((async () => {
-            const types: string[] = ["template-helpers.d.ts"];
-            if (!vueCompilerOptions.checkUnknownProps) {
-                types.push("props-fallback.d.ts");
-            }
-            if (vueCompilerOptions.lib === "vue" && vueCompilerOptions.target < 3.5) {
-                types.push("vue-3.4-shims.d.ts");
-            }
-
-            const resolvedPaths: Record<string, string[]> = {
-                [`${sourceRoot}/*`]: [`${targetRoot}/*`],
-            };
-
-            for (const config of parsed.extended?.toReversed() ?? [parsed]) {
-                const configDir = dirname(config.tsconfigFile);
-
-                for (const [pattern, paths] of Object.entries<string[]>(
-                    config.tsconfig.compilerOptions?.paths ?? {},
-                )) {
-                    resolvedPaths[pattern] = paths.map((path) => {
-                        const absolutePath = isAbsolute(path) ? path : join(configDir, path);
-                        return relative(sourceRoot, absolutePath).startsWith("..")
-                            ? absolutePath
-                            : toTargetPath(absolutePath);
-                    });
-                }
-            }
-
-            const targetConfig: TSConfig = {
-                ...parsed.tsconfig,
-                extends: void 0,
-                compilerOptions: {
-                    ...parsed.tsconfig.compilerOptions,
-                    paths: resolvedPaths,
-                    types: [
-                        ...parsed.tsconfig.compilerOptions?.types ?? [],
-                        ...types.map((name) => join(vueCompilerOptions.typesRoot, name)),
-                    ],
-                },
-                include: parsed.tsconfig.include?.map((path: string) => (
-                    isAbsolute(path) ? relative(configRoot, path) : path
-                )),
-                exclude: parsed.tsconfig.exclude?.map((path: string) => (
-                    isAbsolute(path) ? relative(configRoot, path) : path
-                )),
-            };
-
-            await writeFile(targetConfigPath, JSON.stringify(targetConfig, null, 2));
-        })());
 
         for (const name of ["package.json", "node_modules"]) {
             const path = join(sourceRoot, name);
-            tasks.push(symlink(path, toTargetPath(path)).catch(() => void 0));
+            tasks.push(() => symlink(path, toTargetPath(path)).catch(() => void 0));
         }
 
-        await Promise.all(tasks);
+        // write all directories first
+        await Promise.all([...dirs].map((dir) => mkdir(dir, { recursive: true })));
+
+        // write all files in parallel
+        await Promise.all(tasks.map((task) => task()));
     }
 
     async function runTsgo(args: string[] = []) {
