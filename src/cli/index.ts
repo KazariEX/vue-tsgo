@@ -48,7 +48,7 @@ await Clerc.create()
         command: false,
         footer: async () => {
             console.log();
-            console.log("-".repeat(40));
+            console.log("-".repeat(45));
             console.log();
 
             await runTsgoCommand(["--help"], {
