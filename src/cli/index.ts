@@ -1,20 +1,28 @@
 #!/usr/bin/env node
-import { Cli, defineCommand } from "clerc";
+import { Clerc, defineCommand, helpPlugin, versionPlugin } from "clerc";
 import { join, resolve } from "pathe";
 import { find } from "tsconfck";
 import packageJson from "../../package.json";
 import { createProject } from "../core/project";
+import { runTsgoCommand } from "../core/shared";
 
 const tsgo = defineCommand({
     name: "",
+    description: packageJson.description,
     flags: {
         build: {
             type: String,
             short: "b",
+            help: {
+                show: false,
+            },
         },
         project: {
             type: String,
             short: "p",
+            help: {
+                show: false,
+            },
         },
         pretty: {
             type: Boolean,
@@ -45,7 +53,26 @@ const tsgo = defineCommand({
     );
 });
 
-await Cli()
+await Clerc.create()
+    .use(helpPlugin({
+        command: false,
+        async footer() {
+            console.log();
+            console.log("-".repeat(45));
+            console.log();
+
+            await runTsgoCommand(["--help"], {
+                nodeOptions: {
+                    // use the same stdio as the current process
+                    // to ensure the help text is well formatted in the terminal
+                    stdio: "inherit",
+                },
+            });
+        },
+    }))
+    .use(versionPlugin({
+        command: false,
+    }))
     .name("Vue Tsgo")
     .scriptName("vue-tsgo")
     .description(packageJson.description)

@@ -34,8 +34,8 @@ catalogs:
       specifier: ^10.4.1
       version: 10.4.1
     clerc:
-      specifier: 1.3.0-beta.1
-      version: 1.3.0-beta.1
+      specifier: ^1.3.0
+      version: 1.3.0
     empathic:
       specifier: ^2.0.0
       version: 2.0.0
@@ -100,7 +100,7 @@ importers:
         version: 3.5.28
       clerc:
         specifier: 'catalog:'
-        version: 1.3.0-beta.1
+        version: 1.3.0
       empathic:
         specifier: 'catalog:'
         version: 2.0.0
@@ -285,49 +285,49 @@ packages:
   '@clack/prompts@1.0.1':
     resolution: {integrity: sha512-/42G73JkuYdyWZ6m8d/CJtBrGl1Hegyc7Fy78m5Ob+jF85TOUmLR5XLce/U3LxYAw0kJ8CT5aI99RIvPHcGp/Q==}
 
-  '@clerc/core@1.3.0-beta.1':
-    resolution: {integrity: sha512-mfpZzTbsMmmXUX3YHTUMvHuqxh8tL/CG7C4ypHgChbRC5L9emTc8Fu+aDjA+BU8gUOVUb1zEuOsZXoQ+AHZjHw==}
+  '@clerc/core@1.3.0':
+    resolution: {integrity: sha512-WHDeeBtU9qnjFahQYBQDKjNKpkDR3O04uyS68Prjpvhd2AKnLlnviu3Aw9O0Hjz71YPOcc5zeNm4HWPdaRE/iQ==}
 
-  '@clerc/parser@1.3.0-beta.1':
-    resolution: {integrity: sha512-iBAAd6NzniJGBjzIF9KrMZMmN+Gki7K0qW+yn62kWU3ccBkDxW7a6IT6BsC7ZS4CdKVo4CBAUOAWdDKckbm2wA==}
+  '@clerc/parser@1.3.0':
+    resolution: {integrity: sha512-DgqP7CD0Ih4eI1qVmh6tLUiMub0fM3cBT14DHJBkOGHcy59Lct9T+W+SDI8+wArbKbaeRV+3B8VqNPplFik2iQ==}
 
-  '@clerc/plugin-completions@1.3.0-beta.1':
-    resolution: {integrity: sha512-hwiLvrSYjjfRI4xgCa7jYXGGiUDgqWfM4qzxE4AVXOg+oET5IpEKUkazEIfA440IAa9iO1dimSnasN70fIfWgw==}
+  '@clerc/plugin-completions@1.3.0':
+    resolution: {integrity: sha512-bAyqbAVNEegCkGxqRL/6F7o2GCXRAfvUFV+qAY06JSif4qiiMFHu9aLw+wXzo+DzuspNkpHrj+NIVW1ZQCtCBg==}
     peerDependencies:
       '@clerc/core': '*'
 
-  '@clerc/plugin-friendly-error@1.3.0-beta.1':
-    resolution: {integrity: sha512-cyd1GnyJAA9xdU7k5R6f4JeiABrQGFNCIvROutx3y1fR3tWk2aAESlpMTljyiMskJnr83TSeKXJNiuMZUNFWFA==}
+  '@clerc/plugin-friendly-error@1.3.0':
+    resolution: {integrity: sha512-E5Gmpo8Rr4FrgO7TpV1kAozsRGGUCHgUUyNUpXYtNVyCQVY+lEkTVkyYXxTdkQeAZRN2XM7XdoC8gT5hDu/gxQ==}
     peerDependencies:
       '@clerc/core': '*'
 
-  '@clerc/plugin-help@1.3.0-beta.1':
-    resolution: {integrity: sha512-UCmlcRS1AL1DZ1buo6F7cmXrnQnW4uuC/G6tocg1iUzf9UM8xhgh/3cWoOt5ueKZzDLRNovfDYvs0NuByCCJNQ==}
+  '@clerc/plugin-help@1.3.0':
+    resolution: {integrity: sha512-3KIj/vda9j3Moz6KaOXOiAKf0z0kt8ODQKRz9P0vq7BWf0S3YRBu1y0j6tYFzP2BNA9QG2xepz4UccdpZCp6Pg==}
     peerDependencies:
       '@clerc/core': '*'
 
-  '@clerc/plugin-not-found@1.3.0-beta.1':
-    resolution: {integrity: sha512-luwO8WX+FDD0mmwZlf10nbNDB0g1kqZgGfL2TwhFAuRaJ8LQ25/zvL8YVlXFrdzWe+mPH0GFuSm1UW02Jnh+1A==}
+  '@clerc/plugin-not-found@1.3.0':
+    resolution: {integrity: sha512-2q2iAwOn/yQ+bpN9u4jGFkTSMK2dQvj1hHUy+NhRzzOjlZjv/5s1UcLfE9g2Vs7muUu+JAObISwlGwERODrAfg==}
     peerDependencies:
       '@clerc/core': '*'
 
-  '@clerc/plugin-strict-flags@1.3.0-beta.1':
-    resolution: {integrity: sha512-Jqo/t0qvOfaQH9F2B+/+KybylYXoYdmhp7uByJDz7hieA6Y4D1wBYURsJqbA8LMs6IGEsIK/Zp2dI+CP/Oh78w==}
+  '@clerc/plugin-strict-flags@1.3.0':
+    resolution: {integrity: sha512-PmHa+tE+MG+v862ggFRynvXswH1kj8e2cC5rk77fipQM/d55yaLEZrgPOaxwe6dwM7pdSsI3RK6PMHXdFTzQ3g==}
     peerDependencies:
       '@clerc/core': '*'
 
-  '@clerc/plugin-update-notifier@1.3.0-beta.1':
-    resolution: {integrity: sha512-2mc2ms0Uvc7kUr5xffmyTQO1TsRyM+wYWfWlWgIYNGeMuidLggi0fH8tPa1kKj6UnzZH1GLc0Zlf/9FtxXlcTw==}
+  '@clerc/plugin-update-notifier@1.3.0':
+    resolution: {integrity: sha512-gfx9zJaRzHOYnVAEvRNQ2fetEuXtqu+/RwV6FNQltQ17427cC5rBBihScMqicRFkbuu+DHbX9VXd+JMid7/CZQ==}
     peerDependencies:
       '@clerc/core': '*'
 
-  '@clerc/plugin-version@1.3.0-beta.1':
-    resolution: {integrity: sha512-Z0zfZo4wAqGrpas7Tl9mdC62w0g1SS6S+vsI/GphOx5LtjfBIVZWDf0xWomqj5360TbUag0aaGSOg9ijmckaAw==}
+  '@clerc/plugin-version@1.3.0':
+    resolution: {integrity: sha512-TNE5+XOJ4cXGGut/YjZEVQEOpjfCl7akwAYHe3K76QdSGYHtj0DMERzXvCLk7E1Qep+nE+8itGzHvmrMVSnJBw==}
     peerDependencies:
       '@clerc/core': '*'
 
-  '@clerc/utils@1.3.0-beta.1':
-    resolution: {integrity: sha512-TILg16kzQrOfmeoIBki3tQj/Da6HCvktNt2eSMh61c474fE3w4wzdHAuj34KBp2bM/MRjfq2RoZQHxcmkUr9zA==}
+  '@clerc/utils@1.3.0':
+    resolution: {integrity: sha512-rgXz5UZbFsGI01hIeIiV+n3g0zyWAXqhiqDFQSXZH7/KmMJWbC5EEcdAlpmnpjNn3B52M9e8OIbNM5zbgZK2pg==}
 
   '@emnapi/core@1.8.1':
     resolution: {integrity: sha512-AvT9QFpxK0Zd8J0jopedNm+w/2fIzvtPKPjqyw9jwvBaReTTqPBk9Hixaz7KbjimP+QNz605/XnjFcDAL2pqBg==}
@@ -1330,10 +1330,6 @@ packages:
   alien-signals@3.1.2:
     resolution: {integrity: sha512-d9dYqZTS90WLiU0I5c6DHj/HcKkF8ZyGN3G5x8wSbslulz70KOxaqCT0hQCo9KOyhVqzqGojvNdJXoTumZOtcw==}
 
-  ansi-regex@6.2.2:
-    resolution: {integrity: sha512-Bq3SmSpyFHaWjPk8If9yc6svM8c56dB5BAtW4Qbw5jHTwwXXcTLoRMkpDJp6VL0XzlWaCHTXrkFURMYmD0sLqg==}
-    engines: {node: '>=12'}
-
   ansis@4.2.0:
     resolution: {integrity: sha512-HqZ5rWlFjGiV0tDm3UxxgNRqsOTniqoKZu0pIAfh7TZQMGuZK+hH0drySty0si0QXj1ieop4+SkSfPZBPPkHig==}
     engines: {node: '>=14'}
@@ -1438,8 +1434,8 @@ packages:
     resolution: {integrity: sha512-GfisEZEJvzKrmGWkvfhgzcz/BllN1USeqD2V6tg14OAOgaCD2Z/PUEuxnAZ/nPvmaHRG7a8y77p1T/IRQ4D1Hw==}
     engines: {node: '>=4'}
 
-  clerc@1.3.0-beta.1:
-    resolution: {integrity: sha512-wuCRrUl4L9aB2SvdnCicQaaPNqAGiORB8Iubqa6sTfBTV83B4+rZMMXlPHkCdIRBiZQqTX+L6OVBGCWN4LjbUg==}
+  clerc@1.3.0:
+    resolution: {integrity: sha512-BZd/tyumxyegLqInMtfsri9nUz+pxrgrkkVnUrCFssm8XoP/PBHSxeb9p8xgpVzaWg8Als5e2dSr6HUA7yfdqw==}
 
   comment-parser@1.4.1:
     resolution: {integrity: sha512-buhp5kePrmda3vhc5B9t7pUQXAb2Tnd0qgpkIhPhkHXxJpiPJ11H0ZEU0oBpJ2QztSbzG/ZxMj/CHsYJqRHmyg==}
@@ -1782,6 +1778,12 @@ packages:
   fast-levenshtein@2.0.6:
     resolution: {integrity: sha512-DCXu6Ifhqcks7TZKY3Hxp3y6qphY5SJZmrWMDrKcERSOXWQdMhU9Ig/PYrzyw/ul9jOIyh0N4M0tbC5hodg8dw==}
 
+  fast-string-truncated-width@3.0.3:
+    resolution: {integrity: sha512-0jjjIEL6+0jag3l2XWWizO64/aZVtpiGE3t0Zgqxv0DPuxiMjvB3M24fCyhZUO4KomJQPj3LTSUnDP3GpdwC0g==}
+
+  fast-string-width@3.0.2:
+    resolution: {integrity: sha512-gX8LrtNEI5hq8DVUfRQMbr5lpaS4nMIWV+7XEbXk2b8kiQIizgnlr12B4dA3ZEx3308ze0O4Q1R+cHts8kyUJg==}
+
   fault@2.0.1:
     resolution: {integrity: sha512-WtySTkS4OKev5JtpHXnib4Gxiurzh5NCGvWrFaZ34m6JehfTUhKZvn9njTfw48t6JumVQOmrKqpmGcdwxnhqBQ==}
 
@@ -1821,10 +1823,6 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
-
-  get-east-asian-width@1.5.0:
-    resolution: {integrity: sha512-CQ+bEO+Tva/qlmw24dCejulK5pMzVnUOFOijVogd3KQs07HnRIgp8TGipvCCRT06xeYEbpbgwaCxglFyiuIcmA==}
-    engines: {node: '>=18'}
 
   get-tsconfig@4.13.6:
     resolution: {integrity: sha512-shZT/QMiSHc/YBLxxOkMtgSid5HFoauqCE3/exfsEcwg1WkeqjG+V40yBbBrsD+jW2HDXcs28xOfcbm2jI8Ddw==}
@@ -2337,14 +2335,6 @@ packages:
   std-env@3.10.0:
     resolution: {integrity: sha512-5GS12FdOZNliM5mAOxFRg7Ir0pWz8MdpYm6AY6VPkGpbA7ZzmbzNcBJQ0GPvvyWgcY7QAhCgf9Uy89I03faLkg==}
 
-  string-width@8.2.0:
-    resolution: {integrity: sha512-6hJPQ8N0V0P3SNmP6h2J99RLuzrWz2gvT7VnK5tKvrNqJoyS9W4/Fb8mo31UiPvy00z7DQXkP2hnKBVav76thw==}
-    engines: {node: '>=20'}
-
-  strip-ansi@7.1.2:
-    resolution: {integrity: sha512-gmBGslpoQJtgnMAvOVqGZpEz9dyoKTCzy2nfz/n8aIFhN/jCE/rCmcxabB6jOOHV+0WNnylOxaxBQPSvcWklhA==}
-    engines: {node: '>=12'}
-
   strip-indent@4.1.1:
     resolution: {integrity: sha512-SlyRoSkdh1dYP0PzclLE7r0M9sgbFKKMFXpFRUMNuKhQSbC6VQIGzq3E0qsfvGJaUFJPGv6Ws1NZ/haTAjfbMA==}
     engines: {node: '>=12'}
@@ -2719,52 +2709,52 @@ snapshots:
       picocolors: 1.1.1
       sisteransi: 1.0.5
 
-  '@clerc/core@1.3.0-beta.1':
+  '@clerc/core@1.3.0':
     dependencies:
-      '@clerc/parser': 1.3.0-beta.1
-      '@clerc/utils': 1.3.0-beta.1
+      '@clerc/parser': 1.3.0
+      '@clerc/utils': 1.3.0
       lite-emit: 4.0.0
 
-  '@clerc/parser@1.3.0-beta.1':
+  '@clerc/parser@1.3.0':
     dependencies:
-      '@clerc/utils': 1.3.0-beta.1
+      '@clerc/utils': 1.3.0
 
-  '@clerc/plugin-completions@1.3.0-beta.1(@clerc/core@1.3.0-beta.1)':
+  '@clerc/plugin-completions@1.3.0(@clerc/core@1.3.0)':
     dependencies:
-      '@clerc/core': 1.3.0-beta.1
+      '@clerc/core': 1.3.0
 
-  '@clerc/plugin-friendly-error@1.3.0-beta.1(@clerc/core@1.3.0-beta.1)':
+  '@clerc/plugin-friendly-error@1.3.0(@clerc/core@1.3.0)':
     dependencies:
-      '@clerc/core': 1.3.0-beta.1
+      '@clerc/core': 1.3.0
 
-  '@clerc/plugin-help@1.3.0-beta.1(@clerc/core@1.3.0-beta.1)':
+  '@clerc/plugin-help@1.3.0(@clerc/core@1.3.0)':
     dependencies:
-      '@clerc/core': 1.3.0-beta.1
-      '@clerc/utils': 1.3.0-beta.1
+      '@clerc/core': 1.3.0
+      '@clerc/utils': 1.3.0
       '@uttr/tint': 0.1.3
-      string-width: 8.2.0
+      fast-string-width: 3.0.2
       text-table: 0.2.0
 
-  '@clerc/plugin-not-found@1.3.0-beta.1(@clerc/core@1.3.0-beta.1)':
+  '@clerc/plugin-not-found@1.3.0(@clerc/core@1.3.0)':
     dependencies:
-      '@clerc/core': 1.3.0-beta.1
+      '@clerc/core': 1.3.0
       '@uttr/tint': 0.1.3
 
-  '@clerc/plugin-strict-flags@1.3.0-beta.1(@clerc/core@1.3.0-beta.1)':
+  '@clerc/plugin-strict-flags@1.3.0(@clerc/core@1.3.0)':
     dependencies:
-      '@clerc/core': 1.3.0-beta.1
-      '@clerc/utils': 1.3.0-beta.1
+      '@clerc/core': 1.3.0
+      '@clerc/utils': 1.3.0
 
-  '@clerc/plugin-update-notifier@1.3.0-beta.1(@clerc/core@1.3.0-beta.1)':
+  '@clerc/plugin-update-notifier@1.3.0(@clerc/core@1.3.0)':
     dependencies:
-      '@clerc/core': 1.3.0-beta.1
+      '@clerc/core': 1.3.0
 
-  '@clerc/plugin-version@1.3.0-beta.1(@clerc/core@1.3.0-beta.1)':
+  '@clerc/plugin-version@1.3.0(@clerc/core@1.3.0)':
     dependencies:
-      '@clerc/core': 1.3.0-beta.1
-      '@clerc/utils': 1.3.0-beta.1
+      '@clerc/core': 1.3.0
+      '@clerc/utils': 1.3.0
 
-  '@clerc/utils@1.3.0-beta.1': {}
+  '@clerc/utils@1.3.0': {}
 
   '@emnapi/core@1.8.1':
     dependencies:
@@ -3580,8 +3570,6 @@ snapshots:
 
   alien-signals@3.1.2: {}
 
-  ansi-regex@6.2.2: {}
-
   ansis@4.2.0: {}
 
   are-docs-informative@0.0.2: {}
@@ -3683,16 +3671,16 @@ snapshots:
     dependencies:
       escape-string-regexp: 1.0.5
 
-  clerc@1.3.0-beta.1:
+  clerc@1.3.0:
     dependencies:
-      '@clerc/core': 1.3.0-beta.1
-      '@clerc/plugin-completions': 1.3.0-beta.1(@clerc/core@1.3.0-beta.1)
-      '@clerc/plugin-friendly-error': 1.3.0-beta.1(@clerc/core@1.3.0-beta.1)
-      '@clerc/plugin-help': 1.3.0-beta.1(@clerc/core@1.3.0-beta.1)
-      '@clerc/plugin-not-found': 1.3.0-beta.1(@clerc/core@1.3.0-beta.1)
-      '@clerc/plugin-strict-flags': 1.3.0-beta.1(@clerc/core@1.3.0-beta.1)
-      '@clerc/plugin-update-notifier': 1.3.0-beta.1(@clerc/core@1.3.0-beta.1)
-      '@clerc/plugin-version': 1.3.0-beta.1(@clerc/core@1.3.0-beta.1)
+      '@clerc/core': 1.3.0
+      '@clerc/plugin-completions': 1.3.0(@clerc/core@1.3.0)
+      '@clerc/plugin-friendly-error': 1.3.0(@clerc/core@1.3.0)
+      '@clerc/plugin-help': 1.3.0(@clerc/core@1.3.0)
+      '@clerc/plugin-not-found': 1.3.0(@clerc/core@1.3.0)
+      '@clerc/plugin-strict-flags': 1.3.0(@clerc/core@1.3.0)
+      '@clerc/plugin-update-notifier': 1.3.0(@clerc/core@1.3.0)
+      '@clerc/plugin-version': 1.3.0(@clerc/core@1.3.0)
 
   comment-parser@1.4.1: {}
 
@@ -4099,6 +4087,12 @@ snapshots:
 
   fast-levenshtein@2.0.6: {}
 
+  fast-string-truncated-width@3.0.3: {}
+
+  fast-string-width@3.0.2:
+    dependencies:
+      fast-string-truncated-width: 3.0.3
+
   fault@2.0.1:
     dependencies:
       format: 0.2.2
@@ -4129,8 +4123,6 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
-
-  get-east-asian-width@1.5.0: {}
 
   get-tsconfig@4.13.6:
     dependencies:
@@ -4864,15 +4856,6 @@ snapshots:
   stackback@0.0.2: {}
 
   std-env@3.10.0: {}
-
-  string-width@8.2.0:
-    dependencies:
-      get-east-asian-width: 1.5.0
-      strip-ansi: 7.1.2
-
-  strip-ansi@7.1.2:
-    dependencies:
-      ansi-regex: 6.2.2
 
   strip-indent@4.1.1: {}
 
