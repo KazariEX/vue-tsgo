@@ -8,8 +8,13 @@ import { createProject } from "../core/project";
 const tsgo = defineCommand({
     name: "",
     flags: {
+        build: {
+            type: String,
+            short: "b",
+        },
         project: {
             type: String,
+            short: "p",
         },
         pretty: {
             type: Boolean,
@@ -19,8 +24,8 @@ const tsgo = defineCommand({
         },
     },
 }, async (context) => {
-    let configPath = context.flags.project;
-    if (configPath !== void 0) {
+    let configPath = context.flags.build ?? context.flags.project;
+    if (configPath) {
         configPath = resolve(configPath);
     }
     else {
@@ -34,7 +39,10 @@ const tsgo = defineCommand({
     }
 
     const project = await createProject(configPath);
-    await project.runTsgo(context.rawParsed.rawUnknown);
+    await project.runTsgo(
+        context.flags.build !== void 0 ? "build" : "project",
+        context.rawParsed.rawUnknown,
+    );
 });
 
 await Cli()

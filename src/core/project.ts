@@ -5,21 +5,30 @@ import * as pkg from "empathic/package";
 import { ResolverFactory } from "oxc-resolver";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "pathe";
 import picomatch from "picomatch";
-import { exec } from "tinyexec";
 import { glob } from "tinyglobby";
-import { parse } from "tsconfck";
+import { parse, type TSConfckParseResult } from "tsconfck";
 import type { VueCompilerOptions } from "@vue/language-core";
 import type { TSConfig } from "pkg-types";
 import packageJson from "../../package.json";
 import { createSourceFile, type SourceFile } from "./codegen";
 import { createCompilerOptionsBuilder } from "./compilerOptions";
-import { isVerificationEnabled } from "./shared";
+import { isVerificationEnabled, runTsgoCommand } from "./shared";
 
 export interface Project {
-    runTsgo: (args?: string[]) => Promise<void>;
+    configPath: string;
+    generate: () => Promise<void>;
+    runTsgo: (mode: "build" | "project", args?: string[]) => Promise<void>;
+    getSourceFileAndPath: (targetPath: string) => Promise<{
+        sourceFile: SourceFile | undefined;
+        sourcePath: string;
+    } | undefined>;
 }
 
-export async function createProject(configPath: string): Promise<Project> {
+export async function createProject(
+    configPath: string,
+    parsed?: TSConfckParseResult,
+    parentConfigs = new Set<string>(),
+): Promise<Project> {
     const configRoot = dirname(configPath);
     const configHash = createHash("sha256").update(configPath).digest("hex").slice(0, 8);
 
@@ -30,7 +39,18 @@ export async function createProject(configPath: string): Promise<Project> {
         throw new Error("[Vue] Failed to find a target directory.");
     }
 
-    const parsed = await parse(configPath);
+    // append to parent before async calls
+    parentConfigs.add(configPath);
+
+    parsed ??= await parse(configPath);
+    const references = await Promise.all(
+        parsed.referenced
+            // circular reference is not expected
+            ?.filter((reference) => !parentConfigs.has(reference.tsconfigFile))
+            ?.map((reference) => createProject(reference.tsconfigFile, reference, parentConfigs))
+        ?? [],
+    );
+
     const builder = createCompilerOptionsBuilder();
     const resolver = new ResolverFactory({
         tsconfig: {
@@ -119,6 +139,7 @@ export async function createProject(configPath: string): Promise<Project> {
     }
 
     async function generate() {
+        await Promise.all(references.map((project) => project.generate()));
         await rm(targetRoot, { recursive: true, force: true });
 
         // global types for Vue SFCs
@@ -134,7 +155,7 @@ export async function createProject(configPath: string): Promise<Project> {
             [`${sourceRoot}/*`]: [`${targetRoot}/*`],
         };
 
-        for (const config of parsed.extended?.toReversed() ?? [parsed]) {
+        for (const config of parsed!.extended?.toReversed() ?? [parsed!]) {
             const configDir = dirname(config.tsconfigFile);
 
             for (const [pattern, paths] of Object.entries<string[]>(
@@ -152,16 +173,19 @@ export async function createProject(configPath: string): Promise<Project> {
         const tsconfigPath = toTargetPath(configPath);
         const tsconfigDir = dirname(tsconfigPath);
         const tsconfig: TSConfig = {
-            ...parsed.tsconfig,
+            ...parsed!.tsconfig,
             extends: void 0,
             compilerOptions: {
-                ...parsed.tsconfig.compilerOptions,
+                ...parsed!.tsconfig.compilerOptions,
                 paths: resolvedPaths,
                 types: [
-                    ...parsed.tsconfig.compilerOptions?.types ?? [],
+                    ...parsed!.tsconfig.compilerOptions?.types ?? [],
                     ...types.map((name) => join(vueCompilerOptions.typesRoot, name)),
                 ],
             },
+            references: references.map((project) => ({
+                path: project.configPath,
+            })),
             // provide a explicit file list to avoid potential edge cases of path resolution
             files: [...targetToFiles.keys()].map((path) => relative(tsconfigDir, path)).sort(),
             include: void 0,
@@ -203,36 +227,29 @@ export async function createProject(configPath: string): Promise<Project> {
         await Promise.all(tasks.map((task) => task()));
     }
 
-    async function runTsgo(args: string[] = []) {
+    async function runTsgo(mode: "build" | "project", args: string[] = []) {
         await generate();
-        const resolvedTsgo = await resolver.async(configRoot, "@typescript/native-preview/package.json");
-        if (resolvedTsgo?.path === void 0) {
-            console.error(`[Vue] Failed to resolve the path of tsgo. Please ensure the @typescript/native-preview package is installed.`);
-            process.exit(1);
-        }
 
-        const tsgo = join(resolvedTsgo.path, "../bin/tsgo.js");
-        const output = await exec(process.execPath, [
-            tsgo,
-            ...["--project", toTargetPath(configPath)],
+        const output = await runTsgoCommand([
+            ...[`--${mode}`, toTargetPath(configPath)],
             ...["--pretty", "true"],
             ...args,
-        ]);
+        ], { resolver });
 
         const { groups, rest } = parseStdout(output.stdout);
         const stats: { path: string; line: number; count: number }[] = [];
 
         for (const [originalPath, diagnostics] of Object.entries(groups)) {
-            const sourceFile = targetToFiles.get(originalPath);
-            const sourcePath = sourceFile?.sourcePath ?? (
-                originalPath.startsWith(targetRoot) ? toSourcePath(originalPath) : originalPath
-            );
+            const {
+                sourceFile,
+                sourcePath = originalPath,
+            } = await getSourceFileAndPath(originalPath) ?? {};
 
             if (sourceFile?.type === "virtual") {
                 if (
                     sourceFile.virtualLang !== "ts" &&
                     sourceFile.virtualLang !== "tsx" &&
-                    parsed.tsconfig.compilerOptions?.checkJs !== true
+                    parsed!.tsconfig.compilerOptions?.checkJs !== true
                 ) {
                     diagnostics.length = 0;
                 }
@@ -324,8 +341,32 @@ export async function createProject(configPath: string): Promise<Project> {
         }
     }
 
+    async function getSourceFileAndPath(targetPath: string) {
+        const sourceFile = targetToFiles.get(targetPath);
+        const sourcePath = sourceFile?.sourcePath ?? (
+            targetPath.startsWith(targetRoot) ? toSourcePath(targetPath) : void 0
+        );
+
+        if (sourcePath !== void 0) {
+            return {
+                sourceFile,
+                sourcePath,
+            };
+        }
+
+        for (const project of references) {
+            const result = await project.getSourceFileAndPath(targetPath);
+            if (result !== void 0) {
+                return result;
+            }
+        }
+    }
+
     return {
+        configPath: toTargetPath(configPath),
+        generate,
         runTsgo,
+        getSourceFileAndPath,
     };
 }
 
