@@ -13,7 +13,9 @@ const tsgo = defineCommand({
         project: {
             type: String,
             short: "p",
-            description: "Path to tsconfig.json file",
+            help: {
+                show: false,
+            },
         },
         pretty: {
             type: Boolean,
