@@ -46,7 +46,7 @@ const tsgo = defineCommand({
 await Clerc.create()
     .use(helpPlugin({
         command: false,
-        footer: async () => {
+        async footer() {
             console.log();
             console.log("-".repeat(45));
             console.log();
@@ -58,7 +58,6 @@ await Clerc.create()
                     stdio: "inherit",
                 },
             });
-            return "";
         },
     }))
     .use(versionPlugin({
