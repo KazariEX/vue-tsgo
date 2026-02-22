@@ -11,7 +11,6 @@ const tsgo = defineCommand({
         build: {
             type: String,
             short: "b",
-            default: void 0,
         },
         project: {
             type: String,
