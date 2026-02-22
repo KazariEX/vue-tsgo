@@ -1,8 +1,8 @@
 {
   "name": "vue-tsgo",
   "type": "module",
-  "version": "0.0.1-yggdrasill.11",
-  "packageManager": "pnpm@10.28.2",
+  "version": "0.0.2",
+  "packageManager": "pnpm@10.30.1",
   "description": "Type checker for Vue SFCs with TypeScript 7 integration",
   "author": "KazariEX",
   "license": "MIT",

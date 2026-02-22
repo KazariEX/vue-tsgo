@@ -1,6 +1,6 @@
 import { type Mapping, SourceMap, type VueCompilerOptions } from "@vue/language-core";
 import { camelize, capitalize } from "@vue/shared";
-import { findDynamicImports, findStaticImports } from "mlly";
+import { findDynamicImports, findExports, findStaticImports } from "mlly";
 import { toString } from "muggle-string";
 import { basename, extname } from "pathe";
 import { createCompilerOptionsBuilder, parseLocalCompilerOptions } from "../compilerOptions";
@@ -50,6 +50,11 @@ export function createSourceFile(
     }
     for (const item of findDynamicImports(sourceText)) {
         sourceFile.imports.push(item.expression.slice(1, -1));
+    }
+    for (const item of findExports(sourceText)) {
+        if (item.specifier) {
+            sourceFile.imports.push(item.specifier);
+        }
     }
     for (const [, path] of sourceText.matchAll(referenceRE)) {
         sourceFile.references.push(path);
