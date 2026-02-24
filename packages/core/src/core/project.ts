@@ -315,7 +315,7 @@ export class Project {
                     if (
                         sourceFile.virtualLang !== "ts" &&
                         sourceFile.virtualLang !== "tsx" &&
-                        this.parsed!.tsconfig.compilerOptions?.checkJs !== true
+                        project.parsed!.tsconfig.compilerOptions?.checkJs !== true
                     ) {
                         diagnostics.length = 0;
                     }
