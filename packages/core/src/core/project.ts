@@ -488,13 +488,12 @@ function runTasks(tasks: Iterator<() => Promise<void>>, limit: number) {
                 if (pending === 0) {
                     resolve();
                 }
-                return;
+                return false;
             }
             pending++;
             task.value?.().then(finish);
-            while (pending < limit) {
-                push();
-            }
+            // eslint-disable-next-line no-empty
+            while (pending < limit && push() !== false) {}
         }
 
         function finish() {
