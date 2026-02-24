@@ -25,7 +25,6 @@
     "build": "tsdown",
     "dev": "tsdown -w",
     "prepack": "pnpm run build",
-    "release": "bumpp --no-push -c \"release: v%s\"",
     "test": "vitest",
     "generate-names": "unrun scripts/generate-names.ts"
   },

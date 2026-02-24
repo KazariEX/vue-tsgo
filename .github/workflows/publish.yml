@@ -29,4 +29,4 @@ jobs:
         run: pnpm run build
 
       - name: Publish
-        run: pnpm publish --tag latest --no-git-checks
+        run: pnpm -r publish --no-git-checks

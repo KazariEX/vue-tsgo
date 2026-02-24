@@ -3,7 +3,9 @@
   "private": true,
   "packageManager": "pnpm@10.30.1",
   "scripts": {
-    "prepare": "zin link core"
+    "prepare": "zin link core",
+    "release": "bumpp --no-push -c \"release: v%s\"",
+    "test": "vitest"
   },
   "devDependencies": {
     "@types/node": "catalog:",
