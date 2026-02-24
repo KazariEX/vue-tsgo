@@ -19,5 +19,8 @@ pnpm i -D vue-tsgo
 ## Usage
 
 ```bash
+# single project
 pnpm vue-tsgo --project .nuxt/tsconfig.app.json
+# multiple projects (references)
+pnpm vue-tsgo --build
 ```
