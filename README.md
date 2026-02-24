@@ -8,7 +8,7 @@ Type checker for Vue SFCs with TypeScript 7 integration.
 
 This project includes a lightweight subset of [@vue/language-core](https://github.com/vuejs/language-tools/tree/master/packages/language-core) designed for type checking only environments.
 
-It works by emulating TypeScript's path resolution behavior when creating a project, writing a virtual workspace into a temporary directory, where all Vue SFCs are transformed into real TS files and handed off to `tsgo` for type checking and diagnostic reporting.
+It works by emulating TypeScript's path resolution behavior when creating a project, writing a virtual workspace into a temporary directory, where all Vue SFCs are transformed into real TS files and handed off to `tsgo --lsp` for type checking.
 
 ## Installation
 
