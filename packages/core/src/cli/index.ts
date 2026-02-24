@@ -1,10 +1,9 @@
 #!/usr/bin/env node
-import { Clerc, defineCommand, helpPlugin, versionPlugin } from "clerc";
+import { Cli, defineCommand } from "clerc";
 import { join, resolve } from "pathe";
 import { find } from "tsconfck";
 import packageJson from "../../package.json";
-import { createProject } from "../core/project";
-import { runTsgoCommand } from "../core/shared";
+import { Project } from "../core/project";
 
 const tsgo = defineCommand({
     name: "",
@@ -13,22 +12,10 @@ const tsgo = defineCommand({
         build: {
             type: String,
             short: "b",
-            help: {
-                show: false,
-            },
         },
         project: {
             type: String,
             short: "p",
-            help: {
-                show: false,
-            },
-        },
-        pretty: {
-            type: Boolean,
-            help: {
-                show: false,
-            },
         },
     },
 }, async (context) => {
@@ -46,33 +33,13 @@ const tsgo = defineCommand({
         process.exit(1);
     }
 
-    const project = await createProject(configPath);
-    await project.runTsgo(
-        context.flags.build !== void 0 ? "build" : "project",
-        context.rawParsed.rawUnknown,
-    );
+    const project = new Project(configPath);
+    await project.initialize();
+    await project.generate();
+    await project.check(context.flags.build !== void 0 ? "build" : "project");
 });
 
-await Clerc.create()
-    .use(helpPlugin({
-        command: false,
-        async footer() {
-            console.log();
-            console.log("-".repeat(45));
-            console.log();
-
-            await runTsgoCommand(["--help"], {
-                nodeOptions: {
-                    // use the same stdio as the current process
-                    // to ensure the help text is well formatted in the terminal
-                    stdio: "inherit",
-                },
-            });
-        },
-    }))
-    .use(versionPlugin({
-        command: false,
-    }))
+await Cli()
     .name("Vue Tsgo")
     .scriptName("vue-tsgo")
     .description(packageJson.description)

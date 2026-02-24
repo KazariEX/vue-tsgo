@@ -3,6 +3,7 @@ import { camelize, capitalize } from "@vue/shared";
 import { findDynamicImports, findExports, findStaticImports } from "mlly";
 import { toString } from "muggle-string";
 import { basename, extname } from "pathe";
+import type { Position } from "vscode-languageserver-protocol";
 import { createCompilerOptionsBuilder, parseLocalCompilerOptions } from "../compilerOptions";
 import { createIR, type IRBlock } from "../parse/ir";
 import { collectScriptRanges } from "./ranges/script";
@@ -24,8 +25,8 @@ export interface VirtualFile extends File {
     virtualText: string;
     virtualLang: string;
     mapper: SourceMap<CodeInformation>;
-    getSourceLineAndColumn: (offset: number) => { line: number; column: number };
-    getVirtualOffset: (line: number, column: number) => number;
+    getSourceLineAndCharacter: (offset: number) => Position;
+    getVirtualOffset: (line: number, character: number) => number;
 }
 
 export interface NativeFile extends File {
@@ -267,7 +268,7 @@ function createVirtualFile(
         mapper,
         imports: [],
         references: [],
-        getSourceLineAndColumn: createLineAndColumnGetter(sourceText),
+        getSourceLineAndCharacter: createLineAndCharacterGetter(sourceText),
         getVirtualOffset: createOffsetGetter(virtualText),
     };
 }
@@ -333,12 +334,12 @@ function createOffsetGetter(text: string) {
         }
     }
 
-    return (line: number, column: number) => {
-        return lineOffsets[line - 1] + column - 1;
+    return (line: number, character: number) => {
+        return lineOffsets[line] + character;
     };
 }
 
-function createLineAndColumnGetter(text: string) {
+function createLineAndCharacterGetter(text: string) {
     const lineOffsets: number[] = [0];
     for (let i = 0; i < text.length; i++) {
         if (text[i] === "\n") {
@@ -355,8 +356,8 @@ function createLineAndColumnGetter(text: string) {
             line = i;
         }
         return {
-            line: line + 1,
-            column: offset - lineOffsets[line] + 1,
+            line,
+            character: offset - lineOffsets[line],
         };
     };
 }

@@ -47,12 +47,13 @@
     "picomatch": "catalog:",
     "tinyexec": "catalog:",
     "tinyglobby": "catalog:",
-    "tsconfck": "catalog:"
+    "tsconfck": "catalog:",
+    "vscode-jsonrpc": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "catalog:",
     "@types/picomatch": "catalog:",
     "@typescript/native-preview": "catalog:",
-    "pkg-types": "catalog:"
+    "pkg-types": "catalog:",
+    "vscode-languageserver-protocol": "catalog:"
   }
 }

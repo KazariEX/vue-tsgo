@@ -6,6 +6,7 @@
     "prepare": "zin link core"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "@zinkawaii/eslint-config": "catalog:",
     "@zinkawaii/scripts": "catalog:",
     "@zinkawaii/tsconfig": "catalog:",
