@@ -3,14 +3,13 @@ import { mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url";
 import { styleText } from "node:util";
 import * as pkg from "empathic/package";
+import { getExtendsChain, readTsconfig, type TsconfigJson, type TsconfigJsonResolved, type TsconfigResult } from "get-tsconfig";
 import { ResolverFactory } from "oxc-resolver";
 import { dirname, extname, isAbsolute, join, relative } from "pathe";
 import picomatch from "picomatch";
 import { glob } from "tinyglobby";
-import { parse, type TSConfckParseResult } from "tsconfck";
 import { createMessageConnection, RequestType, StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
 import type { VueCompilerOptions } from "@vue/language-core";
-import type { TSConfig } from "pkg-types";
 import type { DiagnosticSeverity, DocumentDiagnosticParams, FullDocumentDiagnosticReport } from "vscode-languageserver-protocol";
 import packageJson from "../../package.json";
 import { createSourceFile, type SourceFile } from "./codegen";
@@ -26,6 +25,8 @@ export class Project {
     private vueCompilerOptions!: VueCompilerOptions;
     private sourceToFiles = new Map<string, SourceFile>();
     private targetToFiles = new Map<string, SourceFile>();
+    private parsed!: TsconfigJsonResolved;
+    private extends!: TsconfigResult<TsconfigJsonResolved>[];
     private references!: Project[];
     private includes!: Set<string>;
 
@@ -34,7 +35,6 @@ export class Project {
 
     constructor(
         private configPath: string,
-        private parsed?: TSConfckParseResult,
         private linkedConfigs = new Set<string>(),
     ) {
         this.configRoot = dirname(configPath);
@@ -61,13 +61,14 @@ export class Project {
     }
 
     async initialize() {
-        this.parsed ??= await parse(this.configPath);
+        this.parsed = readTsconfig(this.configPath).config;
+        this.extends = getExtendsChain(this.configPath);
         this.references = await Promise.all(
-            this.parsed.referenced
+            this.parsed.references
                 // circular reference is not expected
-                ?.filter((reference) => !this.linkedConfigs.has(reference.tsconfigFile))
+                ?.filter((reference) => !this.linkedConfigs.has(reference.path))
                 ?.map(async (reference) => {
-                    const project = new Project(reference.tsconfigFile, reference, this.linkedConfigs);
+                    const project = new Project(reference.path, this.linkedConfigs);
                     await project.initialize();
                     return project;
                 })
@@ -82,14 +83,14 @@ export class Project {
             extensions: [".js", ".jsx", ".ts", ".tsx", ".d.ts", ".json", ".vue"],
         });
 
-        for (const extended of this.parsed.extended?.toReversed() ?? [this.parsed]) {
-            if ("vueCompilerOptions" in extended.tsconfig) {
-                builder.add(extended.tsconfig.vueCompilerOptions, dirname(extended.tsconfigFile));
+        for (const { path, config } of this.extends.toReversed()) {
+            if ("vueCompilerOptions" in config) {
+                builder.add(config.vueCompilerOptions as any, dirname(path));
             }
         }
         this.vueCompilerOptions = builder.build();
 
-        this.includes = await resolveFiles(this.parsed.tsconfig, this.configPath, this.vueCompilerOptions);
+        this.includes = await resolveFiles(this.parsed, this.configPath, this.vueCompilerOptions);
 
         // process files in parallel waves:
         // read files, run codegen, resolve imports, repeat for newly discovered files
@@ -174,11 +175,11 @@ export class Project {
             [`${this.sourceRoot}/*`]: [`${this.targetRoot}/*`],
         };
 
-        for (const config of this.parsed!.extended?.toReversed() ?? [this.parsed!]) {
-            const configDir = dirname(config.tsconfigFile);
+        for (const { path, config } of this.extends.toReversed()) {
+            const configDir = dirname(path);
 
             for (const [pattern, paths] of Object.entries<string[]>(
-                config.tsconfig.compilerOptions?.paths ?? {},
+                config.compilerOptions?.paths ?? {},
             )) {
                 resolvedPaths[pattern] = paths.map((path) => {
                     const absolutePath = isAbsolute(path) ? path : join(configDir, path);
@@ -189,24 +190,24 @@ export class Project {
             }
         }
 
-        const tsconfig: TSConfig = {
-            ...this.parsed!.tsconfig,
+        const tsconfig: TsconfigJson = {
+            ...this.parsed,
             extends: void 0,
             compilerOptions: {
-                ...this.parsed!.tsconfig.compilerOptions,
+                ...this.parsed.compilerOptions,
                 paths: resolvedPaths,
                 types: [
-                    ...this.parsed!.tsconfig.compilerOptions?.types ?? [],
+                    ...this.parsed.compilerOptions?.types ?? [],
                     ...types.map((name) => join(this.vueCompilerOptions.typesRoot, name)),
                 ],
             },
             references: this.references.map((project) => ({
                 path: project.configTarget,
             })),
-            include: this.parsed!.tsconfig.include?.map((pattern: string) => (
+            include: this.parsed.include?.map((pattern: string) => (
                 isAbsolute(pattern) ? relative(this.configRoot, pattern) : pattern
             )),
-            exclude: this.parsed!.tsconfig.exclude?.map((pattern: string) => (
+            exclude: this.parsed.exclude?.map((pattern: string) => (
                 isAbsolute(pattern) ? relative(this.configRoot, pattern) : pattern
             )),
         };
@@ -220,7 +221,7 @@ export class Project {
         tasks.push(() => writeFile(this.configTarget, JSON.stringify(tsconfig, null, 2)));
 
         if (this.configTarget !== join(this.targetRoot, "tsconfig.json")) {
-            const tsconfig: TSConfig = {
+            const tsconfig: TsconfigJson = {
                 references: [
                     { path: "./" + relative(this.targetRoot, this.configTarget) },
                 ],
@@ -277,7 +278,6 @@ export class Project {
             rootUri: pathToFileURL(this.targetRoot).href,
             capabilities: {},
         });
-
         await connection.sendNotification("initialized");
 
         const projects: Project[] = [this];
@@ -312,7 +312,7 @@ export class Project {
                     if (
                         sourceFile.virtualLang !== "ts" &&
                         sourceFile.virtualLang !== "tsx" &&
-                        project.parsed!.tsconfig.compilerOptions?.checkJs !== true
+                        project.parsed.compilerOptions?.checkJs !== true
                     ) {
                         diagnostics.length = 0;
                     }
@@ -343,8 +343,7 @@ export class Project {
                 }
 
                 const relativePath = relative(process.cwd(), sourceFile.sourcePath);
-                const sourceText = sourceFile?.sourceText ?? await readFile(sourceFile.sourcePath, "utf-8");
-                const lines = sourceText.split("\n");
+                const lines = sourceFile.sourceText.split("\n");
 
                 for (const { range: { start, end }, code, message } of diagnostics) {
                     outputs.push(`${styleText("cyanBright", relativePath)}:${styleText("yellowBright", String(start.line + 1))}:${styleText("yellowBright", String(start.character + 1))} - ${styleText("redBright", "error")} ${styleText("gray", `TS${code}:`)} ${message}\n`);
@@ -407,7 +406,7 @@ export class Project {
     }
 }
 
-async function resolveFiles(config: TSConfig, configPath: string, vueCompilerOptions: VueCompilerOptions) {
+async function resolveFiles(config: TsconfigJson, configPath: string, vueCompilerOptions: VueCompilerOptions) {
     const configRoot = dirname(configPath);
     const extensions = new Set([
         ...[".ts", ".tsx", ".js", ".jsx", ".json", ".mjs", ".mts", ".cjs", ".cts"],

@@ -37,6 +37,7 @@
     "@vue/shared": "catalog:",
     "clerc": "catalog:",
     "empathic": "catalog:",
+    "get-tsconfig": "catalog:",
     "mlly": "catalog:",
     "muggle-string": "catalog:",
     "oxc-parser": "catalog:",
@@ -46,13 +47,11 @@
     "picomatch": "catalog:",
     "tinyexec": "catalog:",
     "tinyglobby": "catalog:",
-    "tsconfck": "catalog:",
     "vscode-jsonrpc": "catalog:"
   },
   "devDependencies": {
     "@types/picomatch": "catalog:",
     "@typescript/native-preview": "catalog:",
-    "pkg-types": "catalog:",
     "vscode-languageserver-protocol": "catalog:"
   }
 }

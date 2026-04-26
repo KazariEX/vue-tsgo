@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Cli, defineCommand } from "clerc";
+import { findTsconfig } from "get-tsconfig";
 import { join, resolve } from "pathe";
-import { find } from "tsconfck";
 import packageJson from "../../package.json";
 import { Project } from "../core/project";
 
@@ -25,7 +25,7 @@ const tsgo = defineCommand({
     }
     else {
         const fileName = join(process.cwd(), "dummy.ts");
-        configPath = await find(fileName) ?? void 0;
+        configPath = findTsconfig(fileName);
     }
 
     if (configPath === void 0) {

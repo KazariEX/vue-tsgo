@@ -24,6 +24,7 @@ catalog:
   clerc: ^1.3.1
   empathic: ^2.0.0
   eslint: ^10.0.2
+  get-tsconfig: ^5.0.0-beta.4
   mlly: ^1.8.0
   muggle-string: ^0.4.1
   oxc-parser: ^0.115.0
@@ -31,10 +32,8 @@ catalog:
   oxc-walker: ^0.7.0
   pathe: ^2.0.3
   picomatch: ^4.0.3
-  pkg-types: ^2.3.0
   tinyexec: ^1.0.2
   tinyglobby: ^0.2.15
-  tsconfck: ^3.1.6
   tsdown: ^0.20.3
   unrun: ^0.2.27
   vitest: ^4.0.18
