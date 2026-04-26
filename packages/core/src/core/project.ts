@@ -65,10 +65,12 @@ export class Project {
         this.parsed = this.extends[0].config;
         this.references = await Promise.all(
             this.parsed.references
+                // its type indicates that `reference.path` is a normalized path, but it is not
+                ?.map((reference) => join(this.configRoot, reference.path))
                 // circular reference is not expected
-                ?.filter((reference) => !this.linkedConfigs.has(reference.path))
-                ?.map(async (reference) => {
-                    const project = new Project(reference.path, this.linkedConfigs);
+                ?.filter((path) => !this.linkedConfigs.has(path))
+                ?.map(async (path) => {
+                    const project = new Project(path, this.linkedConfigs);
                     await project.initialize();
                     return project;
                 })
