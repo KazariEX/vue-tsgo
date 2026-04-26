@@ -92,11 +92,15 @@ export class Project {
         }
         this.vueCompilerOptions = builder.build();
 
-        this.includes = await resolveFiles(this.parsed, this.configPath, this.vueCompilerOptions);
+        const extensions = new Set([
+            ...[".ts", ".tsx", ".js", ".jsx", ".json", ".mjs", ".mts", ".cjs", ".cts"],
+            ...this.vueCompilerOptions.extensions,
+        ]);
+        this.includes = await resolveFiles(this.parsed, this.configPath, extensions);
 
         // process files in parallel waves:
         // read files, run codegen, resolve imports, repeat for newly discovered files
-        let pending = [...this.includes];
+        const pending = [...this.includes];
         while (pending.length) {
             // read all pending files in parallel
             const entries = await Promise.all(
@@ -126,26 +130,24 @@ export class Project {
             }
 
             // resolve all import specifiers in parallel
-            const resolved = await Promise.all(
+            pending.length = 0;
+            await Promise.all(
                 importSpecs.map(async ({ path, specifier }) => {
                     const result = await this.resolver.resolveFileAsync(path, specifier);
-                    return result?.path;
+                    const resolvedPath = result?.path;
+
+                    // collect newly discovered files for the next wave
+                    if (
+                        resolvedPath !== void 0 &&
+                        extensions.has(extname(resolvedPath)) &&
+                        !resolvedPath.includes("/node_modules/") &&
+                        !this.includes.has(resolvedPath)
+                    ) {
+                        this.includes.add(resolvedPath);
+                        pending.push(resolvedPath);
+                    }
                 }),
             );
-
-            // collect newly discovered files for the next wave
-            pending = [];
-            for (const resolvedPath of resolved) {
-                if (
-                    resolvedPath === void 0 ||
-                    resolvedPath.includes("/node_modules/") ||
-                    this.includes.has(resolvedPath)
-                ) {
-                    continue;
-                }
-                this.includes.add(resolvedPath);
-                pending.push(resolvedPath);
-            }
         }
 
         this.sourceRoot = getMutualRoot(this.includes, this.configRoot);
@@ -408,12 +410,8 @@ export class Project {
     }
 }
 
-async function resolveFiles(config: TsconfigJson, configPath: string, vueCompilerOptions: VueCompilerOptions) {
+async function resolveFiles(config: TsconfigJson, configPath: string, extensions: Set<string>) {
     const configRoot = dirname(configPath);
-    const extensions = new Set([
-        ...[".ts", ".tsx", ".js", ".jsx", ".json", ".mjs", ".mts", ".cjs", ".cts"],
-        ...vueCompilerOptions.extensions,
-    ]);
 
     const includes = await Promise.all(
         config.include?.map(async (pattern) => {
