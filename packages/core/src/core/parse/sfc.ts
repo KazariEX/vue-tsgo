@@ -5,11 +5,13 @@ import { extname } from "pathe";
 import { toMappings } from "../shared";
 
 const frontmatterRE = /^---[\s\S]*?\n---(?:\r?\n|$)/;
-const codeBlockRE = /(?<=`{3})[\s\S]+?(?=`{3})/g;
-const latexBlockRE = /(?<=\${2})[\s\S]+?(?=\${2})/g;
+const codeBlockRE = /(`{3})[\s\S]+?\1/g;
+const latexBlockRE = /(\${2})[\s\S]+?\1/g;
 const codeSnippetRE = /^\s*<<<\s*.+/gm;
 const sfcBlockRE = /<(script|style)\b[^>]*>([\s\S]*?)<\/\1>/g;
-const inlineCodeRE = /(?<=`)[\s\S]+?(?=`)/g;
+const htmlTagRE = /(?<=<\/?)([a-z][a-z0-9-]*)\b[^>]*(?=>)/gi;
+const interpolationRE = /(?<=\{\{)[\s\S]*?(?=\}\})/g;
+const inlineCodeRE = /(`{1,2})[^`]+\1/g;
 const angleBracketRE = /<[^\s:]*:\S*>/g;
 
 export function createSFC(sourcePath: string, sourceText: string, vueCompilerOptions: VueCompilerOptions) {
@@ -24,11 +26,14 @@ export function createSFC(sourcePath: string, sourceText: string, vueCompilerOpt
         });
     }
     else if (vueCompilerOptions.vitePressExtensions.includes(sourceLang)) {
-        sourceText = sourceText
-            .replace(frontmatterRE, (match) => " ".repeat(match.length))
-            .replace(codeBlockRE, (match) => " ".repeat(match.length))
-            .replace(latexBlockRE, (match) => " ".repeat(match.length))
-            .replace(codeSnippetRE, (match) => " ".repeat(match.length));
+        for (const regexp of [
+            frontmatterRE,
+            codeBlockRE,
+            latexBlockRE,
+            codeSnippetRE,
+        ]) {
+            sourceText = sourceText.replace(regexp, (match) => " ".repeat(match.length));
+        }
 
         const codes: Segment[] = [];
 
@@ -40,9 +45,23 @@ export function createSFC(sourcePath: string, sourceText: string, vueCompilerOpt
             );
         }
 
-        sourceText = sourceText
-            .replace(inlineCodeRE, (match) => " ".repeat(match.length))
-            .replace(angleBracketRE, (match) => " ".repeat(match.length));
+        const unranges: [number, number][] = [];
+        for (const regexp of [htmlTagRE, interpolationRE]) {
+            for (const { 0: text, index } of sourceText.matchAll(regexp)) {
+                unranges.push([index, index + text.length]);
+            }
+        }
+
+        for (const regexp of [inlineCodeRE, angleBracketRE]) {
+            for (const { 0: text, index } of sourceText.matchAll(regexp)) {
+                if (unranges.some(([start, end]) => index >= start && index < end)) {
+                    continue;
+                }
+                sourceText = (
+                    sourceText.slice(0, index) + " ".repeat(text.length) + sourceText.slice(index + text.length)
+                );
+            }
+        }
 
         codes.push("<template>\n");
         codes.push([sourceText, void 0, 0]);
