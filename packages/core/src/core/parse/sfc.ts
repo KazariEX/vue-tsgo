@@ -18,12 +18,7 @@ export function createSFC(sourcePath: string, sourceText: string, vueCompilerOpt
     const sourceLang = extname(sourcePath);
 
     if (vueCompilerOptions.extensions.includes(sourceLang)) {
-        return CompilerDOM.parse(sourceText, {
-            comments: true,
-            parseMode: "sfc",
-            isNativeTag: () => true,
-            isPreTag: () => true,
-        });
+        return parseSFC(sourceText);
     }
     else if (vueCompilerOptions.vitePressExtensions.includes(sourceLang)) {
         for (const regexp of [
@@ -69,12 +64,7 @@ export function createSFC(sourcePath: string, sourceText: string, vueCompilerOpt
 
         const mappings = toMappings(codes);
         const mapper = new SourceMap(mappings);
-        const sfc = CompilerDOM.parse(toString(codes), {
-            comments: true,
-            parseMode: "sfc",
-            isNativeTag: () => true,
-            isPreTag: () => true,
-        });
+        const sfc = parseSFC(toString(codes));
 
         for (const { tag, loc, innerLoc } of sfc.children as CompilerDOM.ElementNode[]) {
             const positions = [loc.start, loc.end, innerLoc!.start, innerLoc!.end];
@@ -97,4 +87,19 @@ export function createSFC(sourcePath: string, sourceText: string, vueCompilerOpt
     else {
         throw new Error(`[Vue] Unsupported file extension: ${sourceLang}`);
     }
+}
+
+function parseSFC(sourceText: string) {
+    const errors: CompilerDOM.CompilerError[] = [];
+    const warnings: CompilerDOM.CompilerError[] = [];
+    const options: CompilerDOM.CompilerOptions = {
+        comments: true,
+        parseMode: "sfc",
+        isNativeTag: () => true,
+        isPreTag: () => true,
+        onError: (error) => errors.push(error),
+        onWarn: (error) => warnings.push(error),
+    };
+
+    return CompilerDOM.parse(sourceText, options);
 }
