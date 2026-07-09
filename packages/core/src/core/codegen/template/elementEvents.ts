@@ -1,6 +1,6 @@
 import CompilerDOM from "@vue/compiler-dom";
 import { camelize, capitalize } from "@vue/shared";
-import { type Node, parseSync, type Program } from "oxc-parser";
+import { parseSync, type Program } from "oxc-parser";
 import { codeFeatures } from "../codeFeatures";
 import { helpers } from "../names";
 import { endOfLine, identifierRE, newLine } from "../utils";
@@ -202,24 +202,27 @@ function isCompoundExpression(ast: Program) {
     return false;
   }
   if (ast.body.length === 1) {
-    const node = ast.body[0];
-    if (node.type === "ExpressionStatement") {
-      const { expression } = node;
-      return expression.type !== "ArrowFunctionExpression" && !isPropertyAccessOrIdentifier(expression);
+    const statement = ast.body[0];
+    if (statement.type === "ExpressionStatement") {
+      let node = statement.expression;
+      while (
+        node.type === "ParenthesizedExpression" ||
+        node.type === "TSNonNullExpression" ||
+        node.type === "TSAsExpression"
+      ) {
+        node = node.expression;
+      }
+      if (
+        node.type === "ArrowFunctionExpression" ||
+        node.type === "Identifier" ||
+        node.type === "MemberExpression"
+      ) {
+        return false;
+      }
     }
-    else if (node.type === "FunctionDeclaration") {
+    else if (statement.type === "FunctionDeclaration") {
       return false;
     }
   }
   return true;
-}
-
-function isPropertyAccessOrIdentifier(node: Node) {
-  if (node.type === "Identifier") {
-    return true;
-  }
-  if (node.type === "MemberExpression") {
-    return isPropertyAccessOrIdentifier(node.object);
-  }
-  return false;
 }
