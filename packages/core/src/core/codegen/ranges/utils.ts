@@ -56,6 +56,18 @@ export function getClosestMultiLineCommentRange(
   }
 }
 
+export function getUnwrappedExpression(node: Node) {
+  while (
+    node.type === "ParenthesizedExpression" ||
+    node.type === "TSAsExpression" ||
+    node.type === "TSNonNullExpression" ||
+    node.type === "TSSatisfiesExpression"
+  ) {
+    node = node.expression;
+  }
+  return node;
+}
+
 export function isFunctionLike(node: Node): node is ArrowFunctionExpression | Function {
   return (
     node.type === "ArrowFunctionExpression" ||

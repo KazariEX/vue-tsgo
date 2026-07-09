@@ -3,6 +3,7 @@ import { camelize, capitalize } from "@vue/shared";
 import { parseSync, type Program } from "oxc-parser";
 import { codeFeatures } from "../codeFeatures";
 import { helpers } from "../names";
+import { getUnwrappedExpression } from "../ranges/utils";
 import { endOfLine, identifierRE, newLine } from "../utils";
 import { generateBoundary } from "../utils/boundary";
 import { generateCamelized } from "../utils/camelized";
@@ -211,14 +212,7 @@ function isCompoundExpression(ast: Program, text: string) {
   if (ast.body.length === 1 && text[ast.body[0].end - 1] !== ";") {
     const statement = ast.body[0];
     if (statement.type === "ExpressionStatement") {
-      let node = statement.expression;
-      while (
-        node.type === "ParenthesizedExpression" ||
-        node.type === "TSNonNullExpression" ||
-        node.type === "TSAsExpression"
-      ) {
-        node = node.expression;
-      }
+      const node = getUnwrappedExpression(statement.expression);
       if (
         node.type === "ArrowFunctionExpression" ||
         node.type === "Identifier" ||

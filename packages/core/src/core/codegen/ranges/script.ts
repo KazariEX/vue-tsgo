@@ -2,7 +2,7 @@
 import type { VueCompilerOptions } from "@vue/language-core";
 import type { ObjectExpression } from "oxc-parser";
 import { collectBindingRanges } from "./binding";
-import { getClosestMultiLineCommentRange, getRange, type Range } from "./utils";
+import { getClosestMultiLineCommentRange, getRange, getUnwrappedExpression, type Range } from "./utils";
 import type { IRScript } from "../../parse/ir";
 
 export interface ExportDefaultRanges extends Range {
@@ -30,13 +30,9 @@ export function collectScriptRanges(script: IRScript, vueCompilerOptions: VueCom
       continue;
     }
 
-    let exp = node.declaration;
+    const exp = getUnwrappedExpression(node.declaration);
     let obj: ObjectExpression | undefined;
     let options: ExportDefaultRanges["options"];
-
-    while (exp.type === "TSAsExpression" || exp.type === "ParenthesizedExpression") {
-      exp = exp.expression;
-    }
 
     if (exp.type === "ObjectExpression") {
       obj = exp;
