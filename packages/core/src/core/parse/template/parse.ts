@@ -5,25 +5,25 @@ import { transformFor } from "./transforms/vFor";
 import { transformIf } from "./transforms/vIf";
 
 export function parseTemplate(sourceText: string, options: CompilerOptions) {
-    const [nodeTransforms, directiveTransforms] = getBaseTransformPreset();
-    const resolvedOptions: CompilerOptions = {
-        ...options,
-        comments: true,
-        nodeTransforms: [
-            nodeTransforms[0], // transformVBindShorthand
-            transformIf,
-            transformFor,
-            transformElement,
-            transformText,
-            ...options.nodeTransforms ?? [],
-        ],
-        directiveTransforms: {
-            ...directiveTransforms,
-            ...options.directiveTransforms,
-        },
-    };
+  const [nodeTransforms, directiveTransforms] = getBaseTransformPreset();
+  const resolvedOptions: CompilerOptions = {
+    ...options,
+    comments: true,
+    nodeTransforms: [
+      nodeTransforms[0], // transformVBindShorthand
+      transformIf,
+      transformFor,
+      transformElement,
+      transformText,
+      ...options.nodeTransforms ?? [],
+    ],
+    directiveTransforms: {
+      ...directiveTransforms,
+      ...options.directiveTransforms,
+    },
+  };
 
-    const ast = parse(sourceText, resolvedOptions);
-    transform(ast, resolvedOptions);
-    return ast;
+  const ast = parse(sourceText, resolvedOptions);
+  transform(ast, resolvedOptions);
+  return ast;
 }

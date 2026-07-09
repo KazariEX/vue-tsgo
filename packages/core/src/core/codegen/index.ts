@@ -15,23 +15,23 @@ import { generateTemplate } from "./template";
 import type { Code, CodeInformation } from "../types";
 
 interface File {
-    sourcePath: string;
-    sourceText: string;
-    imports: string[];
-    references: string[];
+  sourcePath: string;
+  sourceText: string;
+  imports: string[];
+  references: string[];
 }
 
 export interface VirtualFile extends File {
-    type: "virtual";
-    virtualText: string;
-    virtualLang: string;
-    mapper: SourceMap<CodeInformation>;
-    getSourceLineAndCharacter: (offset: number) => Position;
-    getVirtualOffset: (line: number, character: number) => number;
+  type: "virtual";
+  virtualText: string;
+  virtualLang: string;
+  mapper: SourceMap<CodeInformation>;
+  getSourceLineAndCharacter: (offset: number) => Position;
+  getVirtualOffset: (line: number, character: number) => number;
 }
 
 export interface NativeFile extends File {
-    type: "native";
+  type: "native";
 }
 
 export type SourceFile = VirtualFile | NativeFile;
@@ -39,313 +39,313 @@ export type SourceFile = VirtualFile | NativeFile;
 const referenceRE = /\/\/\/\s*<reference\s+path=["'](.*?)["']\s*\/>/g;
 
 export function createSourceFile(
-    sourcePath: string,
-    sourceText: string,
-    vueCompilerOptions: VueCompilerOptions,
+  sourcePath: string,
+  sourceText: string,
+  vueCompilerOptions: VueCompilerOptions,
 ) {
-    const sourceLang = extname(sourcePath);
-    const sourceFile = (
-        vueCompilerOptions.extensions.includes(sourceLang) ||
-        vueCompilerOptions.vitePressExtensions.includes(sourceLang)
-    )
-        ? createVirtualFile(sourcePath, sourceText, vueCompilerOptions)
-        : createNativeFile(sourcePath, sourceText);
+  const sourceLang = extname(sourcePath);
+  const sourceFile = (
+    vueCompilerOptions.extensions.includes(sourceLang) ||
+    vueCompilerOptions.vitePressExtensions.includes(sourceLang)
+  )
+    ? createVirtualFile(sourcePath, sourceText, vueCompilerOptions)
+    : createNativeFile(sourcePath, sourceText);
 
-    for (const item of findStaticImports(sourceText)) {
-        sourceFile.imports.push(item.specifier);
+  for (const item of findStaticImports(sourceText)) {
+    sourceFile.imports.push(item.specifier);
+  }
+  for (const item of findDynamicImports(sourceText)) {
+    sourceFile.imports.push(item.expression.slice(1, -1));
+  }
+  for (const item of findExports(sourceText)) {
+    if (item.specifier) {
+      sourceFile.imports.push(item.specifier);
     }
-    for (const item of findDynamicImports(sourceText)) {
-        sourceFile.imports.push(item.expression.slice(1, -1));
-    }
-    for (const item of findExports(sourceText)) {
-        if (item.specifier) {
-            sourceFile.imports.push(item.specifier);
-        }
-    }
-    for (const [, path] of sourceText.matchAll(referenceRE)) {
-        sourceFile.references.push(path);
-    }
+  }
+  for (const [, path] of sourceText.matchAll(referenceRE)) {
+    sourceFile.references.push(path);
+  }
 
-    return sourceFile;
+  return sourceFile;
 }
 
 function createVirtualFile(
-    sourcePath: string,
-    sourceText: string,
-    vueCompilerOptions: VueCompilerOptions,
+  sourcePath: string,
+  sourceText: string,
+  vueCompilerOptions: VueCompilerOptions,
 ): SourceFile {
-    const ir = createIR(sourcePath, sourceText, vueCompilerOptions);
-    const virtualLang = ir.scriptSetup?.lang ?? ir.script?.lang ?? "ts";
+  const ir = createIR(sourcePath, sourceText, vueCompilerOptions);
+  const virtualLang = ir.scriptSetup?.lang ?? ir.script?.lang ?? "ts";
 
-    // #region vueCompilerOptions
-    const options = parseLocalCompilerOptions(ir.comments);
-    if (options) {
-        const builder = createCompilerOptionsBuilder();
-        builder.add(options, sourcePath);
-        vueCompilerOptions = builder.build(vueCompilerOptions);
-    }
-    // #endregion
+  // #region vueCompilerOptions
+  const options = parseLocalCompilerOptions(ir.comments);
+  if (options) {
+    const builder = createCompilerOptionsBuilder();
+    builder.add(options, sourcePath);
+    vueCompilerOptions = builder.build(vueCompilerOptions);
+  }
+  // #endregion
 
-    // #region scriptRanges
-    const scriptRanges = ir.script && collectScriptRanges(ir.script, vueCompilerOptions);
-    // #endregion
+  // #region scriptRanges
+  const scriptRanges = ir.script && collectScriptRanges(ir.script, vueCompilerOptions);
+  // #endregion
 
-    // #region scriptSetupRanges
-    const scriptSetupRanges = ir.scriptSetup && collectScriptSetupRanges(ir.scriptSetup, vueCompilerOptions);
-    // #endregion
+  // #region scriptSetupRanges
+  const scriptSetupRanges = ir.scriptSetup && collectScriptSetupRanges(ir.scriptSetup, vueCompilerOptions);
+  // #endregion
 
-    // #region setupConsts
-    const setupConsts = new Set<string>();
-    if (ir.scriptSetup && scriptSetupRanges) {
-        for (const range of scriptSetupRanges.components) {
-            setupConsts.add(ir.scriptSetup.content.slice(range.start, range.end));
-        }
-        if (ir.script && scriptRanges) {
-            for (const range of scriptRanges.components) {
-                setupConsts.add(ir.script.content.slice(range.start, range.end));
-            }
-        }
-    }
-    if (scriptSetupRanges?.defineProps) {
-        const { destructured, destructuredRest } = scriptSetupRanges.defineProps;
-        if (destructured) {
-            for (const name of destructured) {
-                setupConsts.add(name);
-            }
-        }
-        if (destructuredRest) {
-            setupConsts.add(destructuredRest);
-        }
-    }
-    // #endregion
-
-    // #region setupRefs
-    const setupRefs = new Set(
-        scriptSetupRanges?.useTemplateRef.map(({ name }) => name).filter((name) => name !== void 0),
-    );
-    // #endregion
-
-    // #region inheritAttrs
-    const inheritAttrs = (
-        scriptSetupRanges?.defineOptions?.inheritAttrs ?? scriptRanges?.exportDefault?.options?.inheritAttrs
-    ) !== false;
-    // #endregion
-
-    // #region componentName
-    let componentName: string;
-    if (ir.script && scriptRanges?.exportDefault?.options?.name) {
-        const { name } = scriptRanges.exportDefault.options;
-        componentName = ir.script.content.slice(name.start + 1, name.end - 1);
-    }
-    else if (ir.scriptSetup && scriptSetupRanges?.defineOptions?.name) {
-        componentName = scriptSetupRanges.defineOptions.name;
-    }
-    else {
-        componentName = basename(sourcePath, extname(sourcePath));
-    }
-    componentName = capitalize(camelize(componentName));
-    // #endregion
-
-    // #region generatedTemplate
-    const generatedTemplate = ir.template && !vueCompilerOptions.skipTemplateCodegen
-        ? generateTemplate({
-            vueCompilerOptions,
-            template: ir.template,
-            setupConsts,
-            setupRefs,
-            hasDefineSlots: scriptSetupRanges?.defineSlots !== void 0,
-            propsAssignName: scriptSetupRanges?.defineProps?.name,
-            slotsAssignName: scriptSetupRanges?.defineSlots?.name,
-            componentName,
-            inheritAttrs,
-        })
-        : void 0;
-    // #endregion
-
-    // #region generatedStyle
-    const generatedStyle = ir.styles.length && !vueCompilerOptions.skipTemplateCodegen
-        ? generateStyle({
-            vueCompilerOptions,
-            styles: ir.styles,
-            setupConsts,
-            setupRefs,
-        })
-        : void 0;
-    // #endregion
-
-    // #region declaredVariables
-    const declaredVariables = new Set<string>();
-    if (ir.scriptSetup && scriptSetupRanges) {
-        for (const range of scriptSetupRanges.bindings) {
-            const name = ir.scriptSetup.content.slice(range.start, range.end);
-            declaredVariables.add(name);
-        }
+  // #region setupConsts
+  const setupConsts = new Set<string>();
+  if (ir.scriptSetup && scriptSetupRanges) {
+    for (const range of scriptSetupRanges.components) {
+      setupConsts.add(ir.scriptSetup.content.slice(range.start, range.end));
     }
     if (ir.script && scriptRanges) {
-        for (const range of scriptRanges.bindings) {
-            const name = ir.script.content.slice(range.start, range.end);
-            declaredVariables.add(name);
-        }
+      for (const range of scriptRanges.components) {
+        setupConsts.add(ir.script.content.slice(range.start, range.end));
+      }
     }
-    // #endregion
-
-    // #region setupExposed
-    const setupExposed = new Set<string>();
-    for (const name of [
-        ...generatedTemplate?.accessedVars ?? [],
-        ...generatedStyle?.accessedVars ?? [],
-    ]) {
-        if (declaredVariables.has(name)) {
-            setupExposed.add(name);
-        }
+  }
+  if (scriptSetupRanges?.defineProps) {
+    const { destructured, destructuredRest } = scriptSetupRanges.defineProps;
+    if (destructured) {
+      for (const name of destructured) {
+        setupConsts.add(name);
+      }
     }
-    for (const component of ir.template?.ast.components ?? []) {
-        for (const name of new Set([camelize(component), capitalize(camelize(component))])) {
-            if (declaredVariables.has(name)) {
-                setupExposed.add(name);
-            }
-        }
+    if (destructuredRest) {
+      setupConsts.add(destructuredRest);
     }
-    // #endregion
+  }
+  // #endregion
 
-    // #region generatedScript
-    const generatedScript = generateScript({
-        vueCompilerOptions,
-        sourcePath,
-        script: ir.script,
-        scriptSetup: ir.scriptSetup,
-        scriptRanges,
-        scriptSetupRanges,
-        templateAndStyleCodes: [
-            ...generatedTemplate?.codes ?? [],
-            ...generatedStyle?.codes ?? [],
-        ],
-        templateAndStyleTypes: new Set([
-            ...generatedTemplate?.generatedTypes ?? [],
-            ...generatedStyle?.generatedTypes ?? [],
-        ]),
-        exposed: setupExposed,
-    });
-    // #endregion
+  // #region setupRefs
+  const setupRefs = new Set(
+    scriptSetupRanges?.useTemplateRef.map(({ name }) => name).filter((name) => name !== void 0),
+  );
+  // #endregion
 
-    const blocks: Record<string, IRBlock> = {};
-    for (const block of [
-        ir.template,
-        ir.script,
-        ir.scriptSetup,
-        ...ir.styles,
-        ...ir.customBlocks,
-    ]) {
-        if (block) {
-            blocks[block.name] = block;
-        }
+  // #region inheritAttrs
+  const inheritAttrs = (
+    scriptSetupRanges?.defineOptions?.inheritAttrs ?? scriptRanges?.exportDefault?.options?.inheritAttrs
+  ) !== false;
+  // #endregion
+
+  // #region componentName
+  let componentName: string;
+  if (ir.script && scriptRanges?.exportDefault?.options?.name) {
+    const { name } = scriptRanges.exportDefault.options;
+    componentName = ir.script.content.slice(name.start + 1, name.end - 1);
+  }
+  else if (ir.scriptSetup && scriptSetupRanges?.defineOptions?.name) {
+    componentName = scriptSetupRanges.defineOptions.name;
+  }
+  else {
+    componentName = basename(sourcePath, extname(sourcePath));
+  }
+  componentName = capitalize(camelize(componentName));
+  // #endregion
+
+  // #region generatedTemplate
+  const generatedTemplate = ir.template && !vueCompilerOptions.skipTemplateCodegen
+    ? generateTemplate({
+      vueCompilerOptions,
+      template: ir.template,
+      setupConsts,
+      setupRefs,
+      hasDefineSlots: scriptSetupRanges?.defineSlots !== void 0,
+      propsAssignName: scriptSetupRanges?.defineProps?.name,
+      slotsAssignName: scriptSetupRanges?.defineSlots?.name,
+      componentName,
+      inheritAttrs,
+    })
+    : void 0;
+  // #endregion
+
+  // #region generatedStyle
+  const generatedStyle = ir.styles.length && !vueCompilerOptions.skipTemplateCodegen
+    ? generateStyle({
+      vueCompilerOptions,
+      styles: ir.styles,
+      setupConsts,
+      setupRefs,
+    })
+    : void 0;
+  // #endregion
+
+  // #region declaredVariables
+  const declaredVariables = new Set<string>();
+  if (ir.scriptSetup && scriptSetupRanges) {
+    for (const range of scriptSetupRanges.bindings) {
+      const name = ir.scriptSetup.content.slice(range.start, range.end);
+      declaredVariables.add(name);
     }
+  }
+  if (ir.script && scriptRanges) {
+    for (const range of scriptRanges.bindings) {
+      const name = ir.script.content.slice(range.start, range.end);
+      declaredVariables.add(name);
+    }
+  }
+  // #endregion
 
-    const codes = generatedScript.codes.map<Code>((code) => {
-        if (typeof code === "string") {
-            return code;
-        }
-        if (code[1] === void 0 || code[1] === "main") {
-            return code;
-        }
-        const block = blocks[code[1]];
-        if (!block) {
-            return code;
-        }
-        return [
-            code[0],
-            void 0,
-            code[2] + block.innerStart,
-            code[3],
-        ];
-    });
+  // #region setupExposed
+  const setupExposed = new Set<string>();
+  for (const name of [
+    ...generatedTemplate?.accessedVars ?? [],
+    ...generatedStyle?.accessedVars ?? [],
+  ]) {
+    if (declaredVariables.has(name)) {
+      setupExposed.add(name);
+    }
+  }
+  for (const component of ir.template?.ast.components ?? []) {
+    for (const name of new Set([camelize(component), capitalize(camelize(component))])) {
+      if (declaredVariables.has(name)) {
+        setupExposed.add(name);
+      }
+    }
+  }
+  // #endregion
 
-    const mappings = createMappings(codes);
-    const mapper = new SourceMap<CodeInformation>(mappings);
-    const virtualText = toString(codes);
+  // #region generatedScript
+  const generatedScript = generateScript({
+    vueCompilerOptions,
+    sourcePath,
+    script: ir.script,
+    scriptSetup: ir.scriptSetup,
+    scriptRanges,
+    scriptSetupRanges,
+    templateAndStyleCodes: [
+      ...generatedTemplate?.codes ?? [],
+      ...generatedStyle?.codes ?? [],
+    ],
+    templateAndStyleTypes: new Set([
+      ...generatedTemplate?.generatedTypes ?? [],
+      ...generatedStyle?.generatedTypes ?? [],
+    ]),
+    exposed: setupExposed,
+  });
+  // #endregion
 
-    return {
-        type: "virtual",
-        sourcePath,
-        sourceText,
-        virtualText,
-        virtualLang,
-        mapper,
-        imports: [],
-        references: [],
-        getSourceLineAndCharacter: createLineAndCharacterGetter(sourceText),
-        getVirtualOffset: createOffsetGetter(virtualText),
-    };
+  const blocks: Record<string, IRBlock> = {};
+  for (const block of [
+    ir.template,
+    ir.script,
+    ir.scriptSetup,
+    ...ir.styles,
+    ...ir.customBlocks,
+  ]) {
+    if (block) {
+      blocks[block.name] = block;
+    }
+  }
+
+  const codes = generatedScript.codes.map<Code>((code) => {
+    if (typeof code === "string") {
+      return code;
+    }
+    if (code[1] === void 0 || code[1] === "main") {
+      return code;
+    }
+    const block = blocks[code[1]];
+    if (!block) {
+      return code;
+    }
+    return [
+      code[0],
+      void 0,
+      code[2] + block.innerStart,
+      code[3],
+    ];
+  });
+
+  const mappings = createMappings(codes);
+  const mapper = new SourceMap<CodeInformation>(mappings);
+  const virtualText = toString(codes);
+
+  return {
+    type: "virtual",
+    sourcePath,
+    sourceText,
+    virtualText,
+    virtualLang,
+    mapper,
+    imports: [],
+    references: [],
+    getSourceLineAndCharacter: createLineAndCharacterGetter(sourceText),
+    getVirtualOffset: createOffsetGetter(virtualText),
+  };
 }
 
 function createNativeFile(sourcePath: string, sourceText: string): SourceFile {
-    return {
-        type: "native",
-        sourcePath,
-        sourceText,
-        imports: [],
-        references: [],
-    };
+  return {
+    type: "native",
+    sourcePath,
+    sourceText,
+    imports: [],
+    references: [],
+  };
 }
 
 function createMappings(codes: Code[]) {
-    const originalMappings = toMappings(codes);
+  const originalMappings = toMappings(codes);
 
-    const mappings: typeof originalMappings = [];
-    const tokens: Record<symbol, Mapping> = {};
+  const mappings: typeof originalMappings = [];
+  const tokens: Record<symbol, Mapping> = {};
 
-    for (const mapping of originalMappings) {
-        if (mapping.data.__combineToken) {
-            const token = mapping.data.__combineToken;
-            if (token in tokens) {
-                const target = tokens[token];
-                target.sourceOffsets.push(...mapping.sourceOffsets);
-                target.generatedOffsets.push(...mapping.generatedOffsets);
-                target.lengths.push(...mapping.lengths);
-            }
-            else {
-                tokens[token] = mapping;
-                mappings.push(mapping);
-            }
-            continue;
-        }
+  for (const mapping of originalMappings) {
+    if (mapping.data.__combineToken) {
+      const token = mapping.data.__combineToken;
+      if (token in tokens) {
+        const target = tokens[token];
+        target.sourceOffsets.push(...mapping.sourceOffsets);
+        target.generatedOffsets.push(...mapping.generatedOffsets);
+        target.lengths.push(...mapping.lengths);
+      }
+      else {
+        tokens[token] = mapping;
         mappings.push(mapping);
+      }
+      continue;
     }
-    return mappings;
+    mappings.push(mapping);
+  }
+  return mappings;
 }
 
 function createOffsetGetter(text: string) {
-    const lineOffsets: number[] = [0];
-    for (let i = 0; i < text.length; i++) {
-        if (text[i] === "\n") {
-            lineOffsets.push(i + 1);
-        }
+  const lineOffsets: number[] = [0];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === "\n") {
+      lineOffsets.push(i + 1);
     }
+  }
 
-    return (line: number, character: number) => {
-        return lineOffsets[line] + character;
-    };
+  return (line: number, character: number) => {
+    return lineOffsets[line] + character;
+  };
 }
 
 function createLineAndCharacterGetter(text: string) {
-    const lineOffsets: number[] = [0];
-    for (let i = 0; i < text.length; i++) {
-        if (text[i] === "\n") {
-            lineOffsets.push(i + 1);
-        }
+  const lineOffsets: number[] = [0];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === "\n") {
+      lineOffsets.push(i + 1);
     }
+  }
 
-    return (offset: number) => {
-        let line = 0;
-        for (let i = 0; i < lineOffsets.length; i++) {
-            if (lineOffsets[i] > offset) {
-                break;
-            }
-            line = i;
-        }
-        return {
-            line,
-            character: offset - lineOffsets[line],
-        };
+  return (offset: number) => {
+    let line = 0;
+    for (let i = 0; i < lineOffsets.length; i++) {
+      if (lineOffsets[i] > offset) {
+        break;
+      }
+      line = i;
+    }
+    return {
+      line,
+      character: offset - lineOffsets[line],
     };
+  };
 }

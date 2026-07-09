@@ -14,23 +14,23 @@ const declRE = /(?<=const\s+)\w*(?=:)|(?<=type\s+)\w*(?=\s*=|<)|(?<=function\s+)
 const prefix = "__VLS_";
 
 for (const match of typesText.matchAll(declRE)) {
-    const name = match[0].slice(prefix.length);
-    if (name[0]?.toUpperCase() === name[0]) {
-        pascalNames.add(name);
-    }
-    else {
-        camelNames.add(name);
-    }
+  const name = match[0].slice(prefix.length);
+  if (name[0]?.toUpperCase() === name[0]) {
+    pascalNames.add(name);
+  }
+  else {
+    camelNames.add(name);
+  }
 }
 
 const namesPath = join(import.meta.dirname, "../src/core/codegen/names.ts");
 const namesText = await readFile(namesPath, "utf-8");
 
 await writeFile(
-    namesPath,
-    namesText.replace(
-        /(?<=const helpers = define\(\{\n).*?(?=\}\))/s,
-        [...camelNames].sort().map((name) => `    ${name}: "",\n`).join("") +
-        [...pascalNames].sort().map((name) => `    ${name}: "",\n`).join(""),
-    ),
+  namesPath,
+  namesText.replace(
+    /(?<=const helpers = define\(\{\n).*?(?=\}\))/s,
+    [...camelNames].sort().map((name) => `  ${name}: "",\n`).join("") +
+    [...pascalNames].sort().map((name) => `  ${name}: "",\n`).join(""),
+  ),
 );

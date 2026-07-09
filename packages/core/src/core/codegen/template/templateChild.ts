@@ -13,105 +13,105 @@ import type { TemplateCodegenContext } from "./context";
 import type { TemplateCodegenOptions } from "./index";
 
 export function* generateTemplateChild(
-    options: TemplateCodegenOptions,
-    ctx: TemplateCodegenContext,
-    node: CompilerDOM.RootNode | CompilerDOM.TemplateChildNode | CompilerDOM.SimpleExpressionNode,
-    enterNode = true,
-    isVForChild = false,
+  options: TemplateCodegenOptions,
+  ctx: TemplateCodegenContext,
+  node: CompilerDOM.RootNode | CompilerDOM.TemplateChildNode | CompilerDOM.SimpleExpressionNode,
+  enterNode = true,
+  isVForChild = false,
 ): Generator<Code> {
-    if (enterNode && !ctx.enter(node)) {
-        return;
-    }
+  if (enterNode && !ctx.enter(node)) {
+    return;
+  }
 
-    if (node.type === CompilerDOM.NodeTypes.ROOT) {
-        for (const item of collectSingleRootNodes(options, node.children)) {
-            ctx.singleRootNodes.add(item);
-        }
-        for (const child of node.children) {
-            yield* generateTemplateChild(options, ctx, child);
-        }
+  if (node.type === CompilerDOM.NodeTypes.ROOT) {
+    for (const item of collectSingleRootNodes(options, node.children)) {
+      ctx.singleRootNodes.add(item);
     }
-    else if (node.type === CompilerDOM.NodeTypes.ELEMENT) {
-        if (node.tagType === CompilerDOM.ElementTypes.SLOT) {
-            yield* generateSlotOutlet(options, ctx, node);
-        }
-        else {
-            const slotDir = node.props.find(CompilerDOM.isVSlot);
-            if (node.tagType === CompilerDOM.ElementTypes.TEMPLATE && ctx.components.length && slotDir) {
-                yield* generateVSlot(options, ctx, node, slotDir, ctx.components.at(-1)!());
-            }
-            else if (node.tagType === CompilerDOM.ElementTypes.TEMPLATE && isVForChild) {
-                yield* generateFragment(options, ctx, node);
-            }
-            else if (node.tagType === CompilerDOM.ElementTypes.COMPONENT) {
-                yield* generateComponent(options, ctx, node);
-            }
-            else {
-                yield* generateElement(options, ctx, node);
-            }
-        }
+    for (const child of node.children) {
+      yield* generateTemplateChild(options, ctx, child);
     }
-    else if (node.type === CompilerDOM.NodeTypes.COMPOUND_EXPRESSION) {
-        for (const child of node.children) {
-            if (typeof child === "object") {
-                yield* generateTemplateChild(options, ctx, child, false);
-            }
-        }
+  }
+  else if (node.type === CompilerDOM.NodeTypes.ELEMENT) {
+    if (node.tagType === CompilerDOM.ElementTypes.SLOT) {
+      yield* generateSlotOutlet(options, ctx, node);
     }
-    else if (node.type === CompilerDOM.NodeTypes.INTERPOLATION) {
-        yield* generateInterpolation(
-            options,
-            ctx,
-            options.template,
-            node.content.loc.source,
-            node.content.loc.start.offset,
-            codeFeatures.verification,
-            `(`,
-            `)`,
-        );
-        yield endOfLine;
+    else {
+      const slotDir = node.props.find(CompilerDOM.isVSlot);
+      if (node.tagType === CompilerDOM.ElementTypes.TEMPLATE && ctx.components.length && slotDir) {
+        yield* generateVSlot(options, ctx, node, slotDir, ctx.components.at(-1)!());
+      }
+      else if (node.tagType === CompilerDOM.ElementTypes.TEMPLATE && isVForChild) {
+        yield* generateFragment(options, ctx, node);
+      }
+      else if (node.tagType === CompilerDOM.ElementTypes.COMPONENT) {
+        yield* generateComponent(options, ctx, node);
+      }
+      else {
+        yield* generateElement(options, ctx, node);
+      }
     }
-    else if (node.type === CompilerDOM.NodeTypes.IF) {
-        yield* generateVIf(options, ctx, node);
+  }
+  else if (node.type === CompilerDOM.NodeTypes.COMPOUND_EXPRESSION) {
+    for (const child of node.children) {
+      if (typeof child === "object") {
+        yield* generateTemplateChild(options, ctx, child, false);
+      }
     }
-    else if (node.type === CompilerDOM.NodeTypes.FOR) {
-        yield* generateVFor(options, ctx, node);
-    }
+  }
+  else if (node.type === CompilerDOM.NodeTypes.INTERPOLATION) {
+    yield* generateInterpolation(
+      options,
+      ctx,
+      options.template,
+      node.content.loc.source,
+      node.content.loc.start.offset,
+      codeFeatures.verification,
+      `(`,
+      `)`,
+    );
+    yield endOfLine;
+  }
+  else if (node.type === CompilerDOM.NodeTypes.IF) {
+    yield* generateVIf(options, ctx, node);
+  }
+  else if (node.type === CompilerDOM.NodeTypes.FOR) {
+    yield* generateVFor(options, ctx, node);
+  }
 
-    if (enterNode) {
-        yield* ctx.exit();
-    }
+  if (enterNode) {
+    yield* ctx.exit();
+  }
 }
 
 function* collectSingleRootNodes(
-    options: TemplateCodegenOptions,
-    children: CompilerDOM.TemplateChildNode[],
+  options: TemplateCodegenOptions,
+  children: CompilerDOM.TemplateChildNode[],
 ): Generator<CompilerDOM.ElementNode | null> {
-    // exclude the effect of comments on the root node
-    children = children.filter((node) => node.type !== CompilerDOM.NodeTypes.COMMENT);
+  // exclude the effect of comments on the root node
+  children = children.filter((node) => node.type !== CompilerDOM.NodeTypes.COMMENT);
 
-    if (children.length !== 1) {
-        // "null" is used to determine whether the component is not always has a single root
-        if (children.length > 1) {
-            yield null;
-        }
-        return;
+  if (children.length !== 1) {
+    // "null" is used to determine whether the component is not always has a single root
+    if (children.length > 1) {
+      yield null;
     }
+    return;
+  }
 
-    const child = children[0];
-    if (child.type === CompilerDOM.NodeTypes.IF) {
-        for (const branch of child.branches) {
-            yield* collectSingleRootNodes(options, branch.children);
-        }
-        return;
+  const child = children[0];
+  if (child.type === CompilerDOM.NodeTypes.IF) {
+    for (const branch of child.branches) {
+      yield* collectSingleRootNodes(options, branch.children);
     }
-    else if (child.type !== CompilerDOM.NodeTypes.ELEMENT) {
-        return;
-    }
-    yield child;
+    return;
+  }
+  else if (child.type !== CompilerDOM.NodeTypes.ELEMENT) {
+    return;
+  }
+  yield child;
 
-    const tag = hyphenateTag(child.tag);
-    if (options.vueCompilerOptions.fallthroughComponentNames.includes(tag)) {
-        yield* collectSingleRootNodes(options, child.children);
-    }
+  const tag = hyphenateTag(child.tag);
+  if (options.vueCompilerOptions.fallthroughComponentNames.includes(tag)) {
+    yield* collectSingleRootNodes(options, child.children);
+  }
 }

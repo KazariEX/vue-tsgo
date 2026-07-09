@@ -6,15 +6,15 @@ export const newLine = "\n";
 export const identifierRE = /^[a-z_$][\w$]*$/i;
 
 export function section(
-    block: IRScript | IRScriptSetup,
-    start: number,
-    end: number,
-    features: CodeInformation,
+  block: IRScript | IRScriptSetup,
+  start: number,
+  end: number,
+  features: CodeInformation,
 ): Code {
-    return [
-        block.content.slice(start, end),
-        block.name,
-        start,
-        features,
-    ];
+  return [
+    block.content.slice(start, end),
+    block.name,
+    start,
+    features,
+  ];
 }

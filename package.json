@@ -1,7 +1,7 @@
 {
   "type": "module",
   "private": true,
-  "packageManager": "pnpm@11.0.6",
+  "packageManager": "pnpm@11.10.0",
   "scripts": {
     "prepare": "zin link core",
     "release": "bumpp -r --no-push -c \"release: v%s\"",

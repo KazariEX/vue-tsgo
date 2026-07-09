@@ -15,480 +15,479 @@ import { createCompilerOptionsBuilder } from "./compilerOptions";
 import { isVerificationEnabled, runTsgo } from "./shared";
 
 export class Project {
-    private configRoot: string;
-    private configHash: string;
-    private targetRoot: string;
-    private sourceRoot!: string;
-    private resolver!: ResolverFactory;
-    private vueCompilerOptions!: VueCompilerOptions;
-    private sourceToFiles = new Map<string, SourceFile>();
-    private targetToFiles = new Map<string, SourceFile>();
-    private parsed!: TsconfigJsonResolved;
-    private extends!: TsconfigResult<TsconfigJsonResolved>[];
-    private references!: Project[];
-    private includes!: Set<string>;
+  private configRoot: string;
+  private configHash: string;
+  private targetRoot: string;
+  private sourceRoot!: string;
+  private resolver!: ResolverFactory;
+  private vueCompilerOptions!: VueCompilerOptions;
+  private sourceToFiles = new Map<string, SourceFile>();
+  private targetToFiles = new Map<string, SourceFile>();
+  private parsed!: TsconfigJsonResolved;
+  private extends!: TsconfigResult<TsconfigJsonResolved>[];
+  private references!: Project[];
+  private includes!: Set<string>;
 
-    // exposed for references
-    private configTarget!: string;
+  // exposed for references
+  private configTarget!: string;
 
-    constructor(
-        private configPath: string,
-        private linkedConfigs = new Set<string>(),
-    ) {
-        this.configRoot = dirname(configPath);
-        this.configHash = createHash("sha256").update(configPath).digest("hex").slice(0, 8);
+  constructor(
+    private configPath: string,
+    private linkedConfigs = new Set<string>(),
+  ) {
+    this.configRoot = dirname(configPath);
+    this.configHash = createHash("sha256").update(configPath).digest("hex").slice(0, 8);
 
-        this.targetRoot = pkg.cache(`${packageJson.name}/${this.configHash}`, {
-            cwd: this.configRoot,
-        })!;
-        if (this.targetRoot === void 0) {
-            throw new Error("[Vue] Failed to find a target directory.");
+    this.targetRoot = pkg.cache(`${packageJson.name}/${this.configHash}`, {
+      cwd: this.configRoot,
+    })!;
+    if (this.targetRoot === void 0) {
+      throw new Error("[Vue] Failed to find a target directory.");
+    }
+
+    // append to parent before async calls
+    linkedConfigs.add(configPath);
+  }
+
+  private toTargetPath(path: string) {
+    return join(this.targetRoot, relative(this.sourceRoot, path));
+  }
+
+  // avoid parsing errors for TS specific syntax in JS files
+  private toTargetLang(lang: string) {
+    return lang === "js" ? "ts" : lang === "jsx" ? "tsx" : lang;
+  }
+
+  async initialize() {
+    this.extends = getExtendsChain(this.configPath);
+    this.parsed = resolveExtendsChain(this.extends).config;
+    this.references = await Promise.all(
+      this.parsed.references
+        // its type indicates that `reference.path` is a normalized path, but it is not
+        ?.map((reference) => join(this.configRoot, reference.path))
+        // circular reference is not expected
+        ?.filter((path) => !this.linkedConfigs.has(path))
+        ?.map(async (path) => {
+          const project = new Project(path, this.linkedConfigs);
+          await project.initialize();
+          return project;
+        })
+      ?? [],
+    );
+
+    const builder = createCompilerOptionsBuilder();
+    for (const { path, config } of this.extends.toReversed()) {
+      if ("vueCompilerOptions" in config) {
+        builder.add(config.vueCompilerOptions as any, dirname(path));
+      }
+    }
+    this.vueCompilerOptions = builder.build();
+
+    const extensions = new Set([
+      ...[".ts", ".tsx", ".js", ".jsx", ".json", ".mjs", ".mts", ".cjs", ".cts"],
+      ...[".d.ts", ".d.mts", ".d.cts"],
+      ...this.vueCompilerOptions.extensions,
+      ...this.vueCompilerOptions.vitePressExtensions,
+    ]);
+
+    this.resolver = new ResolverFactory({
+      tsconfig: {
+        configFile: this.configPath,
+      },
+      extensions: Array.from(extensions),
+    });
+    this.includes = await resolveFiles(this.parsed, this.configPath, extensions);
+
+    // process files in parallel waves:
+    // read files, run codegen, resolve imports, repeat for newly discovered files
+    const pending = [...this.includes];
+    while (pending.length) {
+      // read all pending files in parallel
+      const entries = await Promise.all(
+        pending.map(async (path) => ({
+          path,
+          sourceText: await readFile(path, "utf-8").catch(() => void 0),
+        })),
+      );
+
+      // process each file (sync codegen) and collect import specifiers
+      const importSpecs: { path: string; specifier: string }[] = [];
+      for (const { path, sourceText } of entries) {
+        if (sourceText === void 0) {
+          this.includes.delete(path);
+          continue;
         }
 
-        // append to parent before async calls
-        linkedConfigs.add(configPath);
-    }
+        const sourceFile = createSourceFile(path, sourceText, this.vueCompilerOptions);
+        this.sourceToFiles.set(path, sourceFile);
 
-    private toTargetPath(path: string) {
-        return join(this.targetRoot, relative(this.sourceRoot, path));
-    }
-
-    // avoid parsing errors for TS specific syntax in JS files
-    private toTargetLang(lang: string) {
-        return lang === "js" ? "ts" : lang === "jsx" ? "tsx" : lang;
-    }
-
-    async initialize() {
-        this.extends = getExtendsChain(this.configPath);
-        this.parsed = resolveExtendsChain(this.extends).config;
-        this.references = await Promise.all(
-            this.parsed.references
-                // its type indicates that `reference.path` is a normalized path, but it is not
-                ?.map((reference) => join(this.configRoot, reference.path))
-                // circular reference is not expected
-                ?.filter((path) => !this.linkedConfigs.has(path))
-                ?.map(async (path) => {
-                    const project = new Project(path, this.linkedConfigs);
-                    await project.initialize();
-                    return project;
-                })
-            ?? [],
-        );
-
-        const builder = createCompilerOptionsBuilder();
-        for (const { path, config } of this.extends.toReversed()) {
-            if ("vueCompilerOptions" in config) {
-                builder.add(config.vueCompilerOptions as any, dirname(path));
-            }
+        for (const specifier of [
+          ...sourceFile.imports,
+          ...sourceFile.references.map((reference) => join(dirname(path), reference)),
+        ]) {
+          importSpecs.push({ path, specifier });
         }
-        this.vueCompilerOptions = builder.build();
+      }
 
-        const extensions = new Set([
-            ...[".ts", ".tsx", ".js", ".jsx", ".json", ".mjs", ".mts", ".cjs", ".cts"],
-            ...[".d.ts", ".d.mts", ".d.cts"],
-            ...this.vueCompilerOptions.extensions,
-            ...this.vueCompilerOptions.vitePressExtensions,
-        ]);
+      // resolve all import specifiers in parallel
+      pending.length = 0;
+      await Promise.all(
+        importSpecs.map(async ({ path, specifier }) => {
+          const result = await this.resolver.resolveFileAsync(path, specifier);
+          const resolvedPath = result?.path;
 
-        this.resolver = new ResolverFactory({
-            tsconfig: {
-                configFile: this.configPath,
-            },
-            extensions: Array.from(extensions),
+          // collect newly discovered files for the next wave
+          if (
+            resolvedPath !== void 0 &&
+            extensions.has(extname(resolvedPath)) &&
+            !resolvedPath.includes("/node_modules/") &&
+            !this.includes.has(resolvedPath)
+          ) {
+            this.includes.add(resolvedPath);
+            pending.push(resolvedPath);
+          }
+        }),
+      );
+    }
+
+    this.sourceRoot = getMutualRoot(this.includes, this.configRoot);
+    this.configTarget = this.toTargetPath(this.configPath);
+
+    for (const path of this.includes) {
+      const sourceFile = this.sourceToFiles.get(path)!;
+      const targetPath = sourceFile.type === "virtual"
+        ? this.toTargetPath(path) + "." + this.toTargetLang(sourceFile.virtualLang)
+        : this.toTargetPath(path);
+      this.targetToFiles.set(targetPath, sourceFile);
+    }
+  }
+
+  async generate() {
+    await Promise.all(this.references.map((project) => project.generate()));
+    await rm(this.targetRoot, { recursive: true, force: true });
+
+    // global types for Vue SFCs
+    const types: string[] = ["template-helpers.d.ts"];
+    if (!this.vueCompilerOptions.checkUnknownProps) {
+      types.push("props-fallback.d.ts");
+    }
+    if (this.vueCompilerOptions.lib === "vue" && this.vueCompilerOptions.target < 3.5) {
+      types.push("vue-3.4-shims.d.ts");
+    }
+
+    const resolvedPaths: Record<string, string[]> = {
+      [`${this.sourceRoot}/*`]: [`${this.targetRoot}/*`],
+    };
+
+    for (const { path, config } of this.extends.toReversed()) {
+      const configDir = dirname(path);
+
+      for (const [pattern, paths] of Object.entries<string[]>(
+        config.compilerOptions?.paths ?? {},
+      )) {
+        resolvedPaths[pattern] = paths.map((path) => {
+          const absolutePath = isAbsolute(path) ? path : join(configDir, path);
+          return relative(this.sourceRoot, absolutePath).startsWith("..")
+            ? absolutePath
+            : this.toTargetPath(absolutePath);
         });
-        this.includes = await resolveFiles(this.parsed, this.configPath, extensions);
-
-        // process files in parallel waves:
-        // read files, run codegen, resolve imports, repeat for newly discovered files
-        const pending = [...this.includes];
-        while (pending.length) {
-            // read all pending files in parallel
-            const entries = await Promise.all(
-                pending.map(async (path) => ({
-                    path,
-                    sourceText: await readFile(path, "utf-8").catch(() => void 0),
-                })),
-            );
-
-            // process each file (sync codegen) and collect import specifiers
-            const importSpecs: { path: string; specifier: string }[] = [];
-            for (const { path, sourceText } of entries) {
-                if (sourceText === void 0) {
-                    this.includes.delete(path);
-                    continue;
-                }
-
-                const sourceFile = createSourceFile(path, sourceText, this.vueCompilerOptions);
-                this.sourceToFiles.set(path, sourceFile);
-
-                for (const specifier of [
-                    ...sourceFile.imports,
-                    ...sourceFile.references.map((reference) => join(dirname(path), reference)),
-                ]) {
-                    importSpecs.push({ path, specifier });
-                }
-            }
-
-            // resolve all import specifiers in parallel
-            pending.length = 0;
-            await Promise.all(
-                importSpecs.map(async ({ path, specifier }) => {
-                    const result = await this.resolver.resolveFileAsync(path, specifier);
-                    const resolvedPath = result?.path;
-
-                    // collect newly discovered files for the next wave
-                    if (
-                        resolvedPath !== void 0 &&
-                        extensions.has(extname(resolvedPath)) &&
-                        !resolvedPath.includes("/node_modules/") &&
-                        !this.includes.has(resolvedPath)
-                    ) {
-                        this.includes.add(resolvedPath);
-                        pending.push(resolvedPath);
-                    }
-                }),
-            );
-        }
-
-        this.sourceRoot = getMutualRoot(this.includes, this.configRoot);
-        this.configTarget = this.toTargetPath(this.configPath);
-
-        for (const path of this.includes) {
-            const sourceFile = this.sourceToFiles.get(path)!;
-            const targetPath = sourceFile.type === "virtual"
-                ? this.toTargetPath(path) + "." + this.toTargetLang(sourceFile.virtualLang)
-                : this.toTargetPath(path);
-            this.targetToFiles.set(targetPath, sourceFile);
-        }
+      }
     }
 
-    async generate() {
-        await Promise.all(this.references.map((project) => project.generate()));
-        await rm(this.targetRoot, { recursive: true, force: true });
+    const tsconfig: TsconfigJson = {
+      ...this.parsed,
+      extends: void 0,
+      compilerOptions: {
+        ...this.parsed.compilerOptions,
+        paths: resolvedPaths,
+        types: [
+          ...this.parsed.compilerOptions?.types ?? [],
+          ...types.map((name) => join(this.vueCompilerOptions.typesRoot, name)),
+        ],
+      },
+      references: this.references.map((project) => ({
+        path: project.configTarget,
+      })),
+      include: this.parsed.include?.map((pattern: string) => (
+        isAbsolute(pattern) ? relative(this.configRoot, pattern) : pattern
+      )),
+      exclude: this.parsed.exclude?.map((pattern: string) => (
+        isAbsolute(pattern) ? relative(this.configRoot, pattern) : pattern
+      )),
+    };
 
-        // global types for Vue SFCs
-        const types: string[] = ["template-helpers.d.ts"];
-        if (!this.vueCompilerOptions.checkUnknownProps) {
-            types.push("props-fallback.d.ts");
-        }
-        if (this.vueCompilerOptions.lib === "vue" && this.vueCompilerOptions.target < 3.5) {
-            types.push("vue-3.4-shims.d.ts");
-        }
+    // pre-collect and create all target directories
+    const dirs = new Set<string>();
+    const tasks: (() => Promise<void>)[] = [];
 
-        const resolvedPaths: Record<string, string[]> = {
-            [`${this.sourceRoot}/*`]: [`${this.targetRoot}/*`],
-        };
+    // 1. tsconfig
+    dirs.add(dirname(this.configTarget));
+    tasks.push(() => writeFile(this.configTarget, JSON.stringify(tsconfig, null, 2)));
 
-        for (const { path, config } of this.extends.toReversed()) {
-            const configDir = dirname(path);
+    if (this.configTarget !== join(this.targetRoot, "tsconfig.json")) {
+      const tsconfig: TsconfigJson = {
+        references: [
+          { path: "./" + relative(this.targetRoot, this.configTarget) },
+        ],
+        files: [],
+      };
+      tasks.push(() => writeFile(
+        join(this.targetRoot, "tsconfig.json"),
+        JSON.stringify(tsconfig, null, 2),
+      ));
+    }
 
-            for (const [pattern, paths] of Object.entries<string[]>(
-                config.compilerOptions?.paths ?? {},
+    // 2. source files
+    for (const path of this.includes) {
+      const sourceFile = this.sourceToFiles.get(path)!;
+      const targetPath = sourceFile.type === "virtual"
+        ? this.toTargetPath(path) + "." + this.toTargetLang(sourceFile.virtualLang)
+        : this.toTargetPath(path);
+
+      dirs.add(dirname(targetPath));
+      tasks.push(() => writeFile(
+        targetPath,
+        sourceFile.type === "virtual" ? sourceFile.virtualText : sourceFile.sourceText,
+      ));
+    }
+
+    // 3. node_modules (symlink)
+    for (const name of ["package.json", "node_modules"]) {
+      const path = join(this.sourceRoot, name);
+      tasks.push(() => symlink(path, this.toTargetPath(path)).catch(() => void 0));
+    }
+
+    // write all directories first
+    await Promise.all(Array.from(dirs, (dir) => mkdir(dir, { recursive: true })));
+
+    // write all files in parallel
+    await Promise.all(tasks.map((task) => task()));
+  }
+
+  async check(mode: "build" | "project") {
+    const child = runTsgo("--lsp", "-stdio");
+
+    const connection = createMessageConnection(
+      new StreamMessageReader(child.stdout),
+      new StreamMessageWriter(child.stdin),
+    );
+    connection.listen();
+
+    await connection.sendRequest("initialize", {
+      processId: child.pid,
+      rootUri: pathToFileURL(this.targetRoot).href,
+      capabilities: {},
+    });
+    await connection.sendNotification("initialized");
+
+    const projects: Project[] = [this];
+    if (mode === "build") {
+      for (const project of projects) {
+        projects.push(...project.references);
+      }
+    }
+
+    const stats: { path: string; line: number; count: number }[] = [];
+    const outputs: string[] = [];
+
+    const tasks = Iterator.from(projects).flatMap(
+      (project) => project.targetToFiles.keys().map((targetPath) => async () => {
+        const sourceFile = project.targetToFiles.get(targetPath)!;
+
+        const report = await connection.sendRequest(new RequestType<
+          DocumentDiagnosticParams,
+          FullDocumentDiagnosticReport,
+          void
+        >("textDocument/diagnostic"), {
+          textDocument: {
+            uri: pathToFileURL(targetPath).href,
+          },
+        }).catch(() => void 0);
+
+        const diagnostics = report?.items.filter(
+          (item) => item.severity === 1 satisfies typeof DiagnosticSeverity.Error,
+        ) ?? [];
+
+        if (sourceFile.type === "virtual") {
+          if (
+            sourceFile.virtualLang !== "ts" &&
+            sourceFile.virtualLang !== "tsx" &&
+            project.parsed.compilerOptions?.checkJs !== true
+          ) {
+            diagnostics.length = 0;
+          }
+
+          outer: for (let i = 0; i < diagnostics.length; i++) {
+            const diagnostic = diagnostics[i];
+
+            // eslint-disable-next-line no-unreachable-loop
+            for (const [start, end] of sourceFile.mapper.toSourceRange(
+              sourceFile.getVirtualOffset(
+                diagnostic.range.start.line,
+                diagnostic.range.start.character,
+              ),
+              sourceFile.getVirtualOffset(
+                diagnostic.range.end.line,
+                diagnostic.range.end.character,
+              ),
+              true,
+              (data) => isVerificationEnabled(data, diagnostic.code as number),
             )) {
-                resolvedPaths[pattern] = paths.map((path) => {
-                    const absolutePath = isAbsolute(path) ? path : join(configDir, path);
-                    return relative(this.sourceRoot, absolutePath).startsWith("..")
-                        ? absolutePath
-                        : this.toTargetPath(absolutePath);
-                });
+              diagnostic.range.start = sourceFile.getSourceLineAndCharacter(start);
+              diagnostic.range.end = sourceFile.getSourceLineAndCharacter(end);
+              continue outer;
             }
+
+            diagnostics.splice(i--, 1);
+          }
         }
 
-        const tsconfig: TsconfigJson = {
-            ...this.parsed,
-            extends: void 0,
-            compilerOptions: {
-                ...this.parsed.compilerOptions,
-                paths: resolvedPaths,
-                types: [
-                    ...this.parsed.compilerOptions?.types ?? [],
-                    ...types.map((name) => join(this.vueCompilerOptions.typesRoot, name)),
-                ],
-            },
-            references: this.references.map((project) => ({
-                path: project.configTarget,
-            })),
-            include: this.parsed.include?.map((pattern: string) => (
-                isAbsolute(pattern) ? relative(this.configRoot, pattern) : pattern
-            )),
-            exclude: this.parsed.exclude?.map((pattern: string) => (
-                isAbsolute(pattern) ? relative(this.configRoot, pattern) : pattern
-            )),
-        };
+        const relativePath = relative(process.cwd(), sourceFile.sourcePath);
+        const lines = sourceFile.sourceText.split("\n");
 
-        // pre-collect and create all target directories
-        const dirs = new Set<string>();
-        const tasks: (() => Promise<void>)[] = [];
+        for (const { range: { start, end }, code, message } of diagnostics) {
+          outputs.push(`${styleText("cyanBright", relativePath)}:${styleText("yellowBright", String(start.line + 1))}:${styleText("yellowBright", String(start.character + 1))} - ${styleText("redBright", "error")} ${styleText("gray", `TS${code}:`)} ${message}\n`);
 
-        // 1. tsconfig
-        dirs.add(dirname(this.configTarget));
-        tasks.push(() => writeFile(this.configTarget, JSON.stringify(tsconfig, null, 2)));
+          const padding = String(end.line + 1).length;
+          const printedLines = lines.slice(start.line, end.line + 1);
 
-        if (this.configTarget !== join(this.targetRoot, "tsconfig.json")) {
-            const tsconfig: TsconfigJson = {
-                references: [
-                    { path: "./" + relative(this.targetRoot, this.configTarget) },
-                ],
-                files: [],
-            };
-            tasks.push(() => writeFile(
-                join(this.targetRoot, "tsconfig.json"),
-                JSON.stringify(tsconfig, null, 2),
-            ));
+          for (let i = 0; i < printedLines.length; i++) {
+            const line = printedLines[i];
+            const columnStart = i === 0 ? start.character : 0;
+            const columnEnd = i === printedLines.length - 1 ? end.character : line.length;
+
+            outputs.push(`\x1B[7m${String(start.line + i + 1).padStart(padding, " ")}\x1B[0m ${line}`);
+            outputs.push(`\x1B[7m${" ".repeat(padding)}\x1B[0m ${" ".repeat(columnStart)}${styleText("redBright", "~".repeat(columnEnd - columnStart))}\n`);
+          }
         }
 
-        // 2. source files
-        for (const path of this.includes) {
-            const sourceFile = this.sourceToFiles.get(path)!;
-            const targetPath = sourceFile.type === "virtual"
-                ? this.toTargetPath(path) + "." + this.toTargetLang(sourceFile.virtualLang)
-                : this.toTargetPath(path);
-
-            dirs.add(dirname(targetPath));
-            tasks.push(() => writeFile(
-                targetPath,
-                sourceFile.type === "virtual" ? sourceFile.virtualText : sourceFile.sourceText,
-            ));
+        if (diagnostics.length) {
+          stats.push({
+            path: relativePath,
+            line: diagnostics[0].range.start.line,
+            count: diagnostics.length,
+          });
         }
+      }),
+    );
 
-        // 3. node_modules (symlink)
-        for (const name of ["package.json", "node_modules"]) {
-            const path = join(this.sourceRoot, name);
-            tasks.push(() => symlink(path, this.toTargetPath(path)).catch(() => void 0));
-        }
+    // align with default checker size in tsgo
+    // https://github.com/microsoft/typescript-go/blob/31304ca/internal/compiler/checkerpool.go#L31
+    await runTasks(tasks, 4);
 
-        // write all directories first
-        await Promise.all(Array.from(dirs, (dir) => mkdir(dir, { recursive: true })));
+    connection.end();
 
-        // write all files in parallel
-        await Promise.all(tasks.map((task) => task()));
+    if (stats.length === 1) {
+      const { path, line, count } = stats[0];
+
+      if (count === 1) {
+        outputs.push(`\nFound ${count} error in ${path}${styleText("gray", `:${line + 1}`)}`);
+      }
+      else {
+        outputs.push(`\nFound ${count} errors in the same file, starting at: ${path}${styleText("gray", `:${line + 1}`)}`);
+      }
+    }
+    else if (stats.length > 1) {
+      const total = stats.reduce((prev, curr) => prev + curr.count, 0);
+
+      outputs.push(`\nFound ${total} errors in ${stats.length} files.\n`);
+      outputs.push(`Errors  Files`);
+
+      for (const { path, line, count } of stats) {
+        outputs.push(`${String(count).padStart(6)}  ${path}${styleText("gray", `:${line + 1}`)}`);
+      }
     }
 
-    async check(mode: "build" | "project") {
-        const child = runTsgo("--lsp", "-stdio");
+    console.info(outputs.join("\n"));
 
-        const connection = createMessageConnection(
-            new StreamMessageReader(child.stdout),
-            new StreamMessageWriter(child.stdin),
-        );
-        connection.listen();
-
-        await connection.sendRequest("initialize", {
-            processId: child.pid,
-            rootUri: pathToFileURL(this.targetRoot).href,
-            capabilities: {},
-        });
-        await connection.sendNotification("initialized");
-
-        const projects: Project[] = [this];
-        if (mode === "build") {
-            for (const project of projects) {
-                projects.push(...project.references);
-            }
-        }
-
-        const stats: { path: string; line: number; count: number }[] = [];
-        const outputs: string[] = [];
-
-        const tasks = Iterator.from(projects).flatMap(
-            (project) => project.targetToFiles.keys().map((targetPath) => async () => {
-                const sourceFile = project.targetToFiles.get(targetPath)!;
-
-                const report = await connection.sendRequest(new RequestType<
-                    DocumentDiagnosticParams,
-                    FullDocumentDiagnosticReport,
-                    void
-                >("textDocument/diagnostic"), {
-                    textDocument: {
-                        uri: pathToFileURL(targetPath).href,
-                    },
-                }).catch(() => void 0);
-
-                const diagnostics = report?.items.filter(
-                    (item) => item.severity === 1 satisfies typeof DiagnosticSeverity.Error,
-                ) ?? [];
-
-                if (sourceFile.type === "virtual") {
-                    if (
-                        sourceFile.virtualLang !== "ts" &&
-                        sourceFile.virtualLang !== "tsx" &&
-                        project.parsed.compilerOptions?.checkJs !== true
-                    ) {
-                        diagnostics.length = 0;
-                    }
-
-                    outer: for (let i = 0; i < diagnostics.length; i++) {
-                        const diagnostic = diagnostics[i];
-
-                        // eslint-disable-next-line no-unreachable-loop
-                        for (const [start, end] of sourceFile.mapper.toSourceRange(
-                            sourceFile.getVirtualOffset(
-                                diagnostic.range.start.line,
-                                diagnostic.range.start.character,
-                            ),
-                            sourceFile.getVirtualOffset(
-                                diagnostic.range.end.line,
-                                diagnostic.range.end.character,
-                            ),
-                            true,
-                            (data) => isVerificationEnabled(data, diagnostic.code as number),
-                        )) {
-                            diagnostic.range.start = sourceFile.getSourceLineAndCharacter(start);
-                            diagnostic.range.end = sourceFile.getSourceLineAndCharacter(end);
-                            continue outer;
-                        }
-
-                        diagnostics.splice(i--, 1);
-                    }
-                }
-
-                const relativePath = relative(process.cwd(), sourceFile.sourcePath);
-                const lines = sourceFile.sourceText.split("\n");
-
-                for (const { range: { start, end }, code, message } of diagnostics) {
-                    outputs.push(`${styleText("cyanBright", relativePath)}:${styleText("yellowBright", String(start.line + 1))}:${styleText("yellowBright", String(start.character + 1))} - ${styleText("redBright", "error")} ${styleText("gray", `TS${code}:`)} ${message}\n`);
-
-                    const padding = String(end.line + 1).length;
-                    const printedLines = lines.slice(start.line, end.line + 1);
-
-                    for (let i = 0; i < printedLines.length; i++) {
-                        const line = printedLines[i];
-                        const columnStart = i === 0 ? start.character : 0;
-                        const columnEnd = i === printedLines.length - 1 ? end.character : line.length;
-
-                        outputs.push(`\x1B[7m${String(start.line + i + 1).padStart(padding, " ")}\x1B[0m ${line}`);
-                        outputs.push(`\x1B[7m${" ".repeat(padding)}\x1B[0m ${" ".repeat(columnStart)}${styleText("redBright", "~".repeat(columnEnd - columnStart))}\n`);
-                    }
-                }
-
-                if (diagnostics.length) {
-                    stats.push({
-                        path: relativePath,
-                        line: diagnostics[0].range.start.line,
-                        count: diagnostics.length,
-                    });
-                }
-            }),
-        );
-
-        // align with default checker size in tsgo
-        // https://github.com/microsoft/typescript-go/blob/31304ca/internal/compiler/checkerpool.go#L31
-        await runTasks(tasks, 4);
-
-        connection.end();
-
-        if (stats.length === 1) {
-            const { path, line, count } = stats[0];
-
-            if (count === 1) {
-                outputs.push(`\nFound ${count} error in ${path}${styleText("gray", `:${line + 1}`)}`);
-            }
-            else {
-                outputs.push(`\nFound ${count} errors in the same file, starting at: ${path}${styleText("gray", `:${line + 1}`)}`);
-            }
-        }
-        else if (stats.length > 1) {
-            const total = stats.reduce((prev, curr) => prev + curr.count, 0);
-
-            outputs.push(`\nFound ${total} errors in ${stats.length} files.\n`);
-            outputs.push(`Errors  Files`);
-
-            for (const { path, line, count } of stats) {
-                outputs.push(`${String(count).padStart(6)}  ${path}${styleText("gray", `:${line + 1}`)}`);
-            }
-        }
-
-        console.info(outputs.join("\n"));
-
-        if (stats.length) {
-            process.exit(1);
-        }
+    if (stats.length) {
+      process.exit(1);
     }
+  }
 }
 
 async function resolveFiles(config: TsconfigJson, configPath: string, extensions: Set<string>) {
-    const configRoot = dirname(configPath);
+  const configRoot = dirname(configPath);
 
-    const includes: string[] = [];
-    const excludes = await Promise.all(
-        config.exclude?.map(transformPattern) ?? [],
-    );
+  const includes: string[] = [];
+  const excludes = await Promise.all(
+    config.exclude?.map(transformPattern) ?? [],
+  );
 
-    await Promise.all(
-        config.include?.map(async (pattern) => {
-            pattern = await transformPattern(pattern);
+  await Promise.all(
+    config.include?.map(async (pattern) => {
+      pattern = await transformPattern(pattern);
 
-            for await (const dirent of glob(pattern, {
-                cwd: configRoot,
-                withFileTypes: true,
-                exclude: ["**/node_modules/**", ...excludes],
-            })) {
-                if (dirent.isFile()) {
-                    includes.push(join(dirent.parentPath, dirent.name));
-                }
-            }
-        }) ?? [],
-    );
-
-    return new Set(
-        includes.flat().filter((path) => (
-            path !== configPath &&
-            extensions.has(extname(path))
-        )),
-    );
-
-    async function transformPattern(pattern: string) {
-        if (!pattern.includes("*")) {
-            try {
-                const path = join(configRoot, pattern);
-                const stats = await stat(path);
-                if (stats.isDirectory()) {
-                    pattern = join(pattern, "**/*");
-                }
-            }
-            catch {}
+      for await (const dirent of glob(pattern, {
+        cwd: configRoot,
+        withFileTypes: true,
+        exclude: ["**/node_modules/**", ...excludes],
+      })) {
+        if (dirent.isFile()) {
+          includes.push(join(dirent.parentPath, dirent.name));
         }
-        return isAbsolute(pattern) ? relative(configRoot, pattern) : pattern;
+      }
+    }) ?? [],
+  );
+
+  return new Set(
+    includes.flat().filter((path) => (
+      path !== configPath && extensions.has(extname(path))
+    )),
+  );
+
+  async function transformPattern(pattern: string) {
+    if (!pattern.includes("*")) {
+      try {
+        const path = join(configRoot, pattern);
+        const stats = await stat(path);
+        if (stats.isDirectory()) {
+          pattern = join(pattern, "**/*");
+        }
+      }
+      catch {}
     }
+    return isAbsolute(pattern) ? relative(configRoot, pattern) : pattern;
+  }
 }
 
 function getMutualRoot(includes: Set<string>, configRoot: string) {
-    let mutual: string[] = configRoot.split("/");
+  let mutual: string[] = configRoot.split("/");
 
-    for (const path of includes) {
-        const segment = path.split("/");
-        for (let i = 0; i < mutual.length; i++) {
-            if (mutual[i] !== segment[i]) {
-                mutual = mutual.slice(0, i);
-                break;
-            }
-        }
+  for (const path of includes) {
+    const segment = path.split("/");
+    for (let i = 0; i < mutual.length; i++) {
+      if (mutual[i] !== segment[i]) {
+        mutual = mutual.slice(0, i);
+        break;
+      }
     }
-    return mutual.join("/");
+  }
+  return mutual.join("/");
 }
 
 function runTasks(tasks: Iterator<() => Promise<void>>, limit: number) {
-    return new Promise<void>((resolve) => {
-        let pending = 0;
-        push();
+  return new Promise<void>((resolve) => {
+    let pending = 0;
+    push();
 
-        function push() {
-            const task = tasks.next();
-            if (task.done) {
-                if (pending === 0) {
-                    resolve();
-                }
-                return false;
-            }
-            pending++;
-            task.value?.().then(finish);
-            // eslint-disable-next-line no-empty
-            while (pending < limit && push() !== false) {}
+    function push() {
+      const task = tasks.next();
+      if (task.done) {
+        if (pending === 0) {
+          resolve();
         }
+        return false;
+      }
+      pending++;
+      task.value?.().then(finish);
+      // eslint-disable-next-line no-empty
+      while (pending < limit && push() !== false) {}
+    }
 
-        function finish() {
-            pending--;
-            push();
-        }
-    });
+    function finish() {
+      pending--;
+      push();
+    }
+  });
 }
