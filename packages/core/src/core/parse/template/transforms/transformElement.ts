@@ -61,13 +61,21 @@ export const transformElement: NodeTransform = (node, context) => {
     }
 
     if (isComponent) {
-      let hasTemplateSlots = false;
       let hasNamedDefaultSlot = false;
       const implicitDefaultChildren: TemplateChildNode[] = [];
       const seenSlotNames = new Set<string>();
       const onComponentSlot = findDir(node, "slot", true);
 
-      for (const child of node.children) {
+      for (let child of node.children) {
+        // <template v-for> -> for > template
+        if (child.type === NodeTypes.FOR) {
+          child = child.children[0]!;
+        }
+        // <template v-if> -> if > branch > template
+        else if (child.type === NodeTypes.IF) {
+          child = child.branches[0]!.children[0]!;
+        }
+
         let slotDir: DirectiveNode | undefined;
         if (!isTemplateNode(child) || !(slotDir = findDir(child, "slot", true))) {
           if (child.type !== NodeTypes.COMMENT) {
@@ -83,11 +91,6 @@ export const transformElement: NodeTransform = (node, context) => {
           break;
         }
 
-        if (findDir(child, /^(?:if|else-if|else|for)$/, true)) {
-          continue;
-        }
-
-        hasTemplateSlots = true;
         const staticSlotName = slotDir.arg
           ? isStaticExp(slotDir.arg)
             ? slotDir.arg.content
@@ -109,7 +112,7 @@ export const transformElement: NodeTransform = (node, context) => {
       }
 
       if (
-        hasTemplateSlots && hasNamedDefaultSlot && implicitDefaultChildren.some(
+        hasNamedDefaultSlot && implicitDefaultChildren.some(
           (node) => node.type !== NodeTypes.TEXT || !!node.content.trim(),
         )
       ) {
