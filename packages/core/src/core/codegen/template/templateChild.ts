@@ -17,7 +17,7 @@ export function* generateTemplateChild(
   ctx: TemplateCodegenContext,
   node: CompilerDOM.RootNode | CompilerDOM.TemplateChildNode | CompilerDOM.SimpleExpressionNode,
   enterNode = true,
-  isVForChild = false,
+  treatTemplateAsFragment = false,
 ): Generator<Code> {
   if (enterNode && !ctx.enter(node)) {
     return;
@@ -40,7 +40,7 @@ export function* generateTemplateChild(
       if (node.tagType === CompilerDOM.ElementTypes.TEMPLATE && ctx.components.length && slotDir) {
         yield* generateVSlot(options, ctx, node, slotDir, ctx.components.at(-1)!());
       }
-      else if (node.tagType === CompilerDOM.ElementTypes.TEMPLATE && isVForChild) {
+      else if (node.tagType === CompilerDOM.ElementTypes.TEMPLATE && treatTemplateAsFragment) {
         yield* generateFragment(options, ctx, node);
       }
       else if (node.tagType === CompilerDOM.ElementTypes.COMPONENT) {
@@ -86,7 +86,7 @@ export function* generateTemplateChild(
 function* collectSingleRootNodes(
   options: TemplateCodegenOptions,
   children: CompilerDOM.TemplateChildNode[],
-  isVIfChild = false,
+  treatTemplateAsFragment = false,
 ): Generator<CompilerDOM.ElementNode | null> {
   // exclude the effect of comments on the root node
   children = children.filter((node) => node.type !== CompilerDOM.NodeTypes.COMMENT);
@@ -110,7 +110,7 @@ function* collectSingleRootNodes(
     return;
   }
 
-  if (child.tagType === CompilerDOM.ElementTypes.TEMPLATE && isVIfChild) {
+  if (child.tagType === CompilerDOM.ElementTypes.TEMPLATE && treatTemplateAsFragment) {
     yield* collectSingleRootNodes(options, child.children, true);
     return;
   }
