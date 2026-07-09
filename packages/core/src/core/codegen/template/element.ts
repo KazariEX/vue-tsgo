@@ -227,7 +227,7 @@ export function* generateComponent(
   if (shouldInheritAttrs) {
     if (options.vueCompilerOptions.checkRequiredFallthroughAttributes) {
       const restsVar = ctx.getInternalVariable();
-      yield `var ${restsVar} = ${names.omit}(${getPropsVar()}, {\n${propsStr}})${endOfLine}`;
+      yield `var ${restsVar} = ${helpers.omit}(${getPropsVar()}, {\n${propsStr}})${endOfLine}`;
       ctx.inheritedAttrVars.add(restsVar);
     }
     else {
@@ -241,10 +241,10 @@ export function* generateComponent(
   }
 
   if (isCtxVarUsed) {
-    yield `var ${ctxVar}!: ${helpers.FunctionalComponentCtx}<typeof ${componentVar}, typeof ${vnodeVar}>${endOfLine}`;
+    yield `var ${ctxVar}!: ${helpers.ExtractComponentContext}<typeof ${componentVar}, typeof ${vnodeVar}>${endOfLine}`;
   }
   if (isPropsVarUsed) {
-    yield `var ${propsVar}!: ${helpers.FunctionalComponentProps}<typeof ${componentVar}, typeof ${vnodeVar}>${endOfLine}`;
+    yield `var ${propsVar}!: ${helpers.ExtractComponentProps}<typeof ${componentVar}, typeof ${vnodeVar}>${endOfLine}`;
   }
   ctx.components.pop();
 }
