@@ -300,7 +300,10 @@ function getShouldCamelize(
     prop.arg?.type === CompilerDOM.NodeTypes.SIMPLE_EXPRESSION && prop.arg.isStatic
   )
     && hyphenateAttr(propName) === propName
-    && !options.vueCompilerOptions.htmlAttributes.some((pattern) => matchesGlob(propName, pattern));
+    && (
+      node.tagType === CompilerDOM.ElementTypes.SLOT ||
+      !options.vueCompilerOptions.htmlAttributes.some((pattern) => matchesGlob(propName, pattern))
+    );
 }
 
 function getPropsCodeFeatures(checkUnknownProps: boolean) {
