@@ -23,7 +23,6 @@ export type ScriptRanges = ReturnType<typeof collectScriptRanges>;
 
 export function collectScriptRanges(script: IRScript, vueCompilerOptions: VueCompilerOptions) {
   let exportDefault: ExportDefaultRanges | undefined;
-  const { bindings, components } = collectBindingRanges(script.ast, vueCompilerOptions);
 
   for (const node of script.ast.body) {
     if (node.type !== "ExportDefaultDeclaration") {
@@ -103,8 +102,7 @@ export function collectScriptRanges(script: IRScript, vueCompilerOptions: VueCom
   }
 
   return {
+    ...collectBindingRanges(script.ast, vueCompilerOptions),
     exportDefault,
-    bindings,
-    components,
   };
 }

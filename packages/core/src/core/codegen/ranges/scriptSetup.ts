@@ -82,7 +82,6 @@ export function collectScriptSetupRanges(scriptSetup: IRScriptSetup, vueCompiler
     break;
   }
 
-  const { bindings, components } = collectBindingRanges(scriptSetup.ast, vueCompilerOptions);
   const defineModel: DefineModel[] = [];
   let defineProps: DefineProps | undefined;
   let withDefaults: CallExpressionRange | undefined;
@@ -278,10 +277,9 @@ export function collectScriptSetupRanges(scriptSetup: IRScriptSetup, vueCompiler
   });
 
   return {
+    ...collectBindingRanges(scriptSetup.ast, vueCompilerOptions),
     leadingCommentEndOffset,
     importSectionEndOffset,
-    bindings,
-    components,
     defineModel,
     defineProps,
     withDefaults,

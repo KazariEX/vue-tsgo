@@ -94,6 +94,20 @@ function createVirtualFile(
   const scriptSetupRanges = ir.scriptSetup && collectScriptSetupRanges(ir.scriptSetup, vueCompilerOptions);
   // #endregion
 
+  // #region setupBindings
+  const setupBindings = new Set<string>();
+  if (ir.scriptSetup && scriptSetupRanges) {
+    for (const range of scriptSetupRanges.bindings) {
+      setupBindings.add(ir.scriptSetup.content.slice(range.start, range.end));
+    }
+    if (ir.script && scriptRanges) {
+      for (const range of scriptRanges.bindings) {
+        setupBindings.add(ir.script.content.slice(range.start, range.end));
+      }
+    }
+  }
+  // #endregion
+
   // #region setupConsts
   const setupConsts = new Set<string>();
   if (ir.scriptSetup && scriptSetupRanges) {
@@ -173,35 +187,19 @@ function createVirtualFile(
     : void 0;
   // #endregion
 
-  // #region declaredVariables
-  const declaredVariables = new Set<string>();
-  if (ir.scriptSetup && scriptSetupRanges) {
-    for (const range of scriptSetupRanges.bindings) {
-      const name = ir.scriptSetup.content.slice(range.start, range.end);
-      declaredVariables.add(name);
-    }
-  }
-  if (ir.script && scriptRanges) {
-    for (const range of scriptRanges.bindings) {
-      const name = ir.script.content.slice(range.start, range.end);
-      declaredVariables.add(name);
-    }
-  }
-  // #endregion
-
   // #region setupExposed
   const setupExposed = new Set<string>();
   for (const name of [
     ...generatedTemplate?.accessedVars ?? [],
     ...generatedStyle?.accessedVars ?? [],
   ]) {
-    if (declaredVariables.has(name)) {
+    if (setupBindings.has(name)) {
       setupExposed.add(name);
     }
   }
   for (const component of ir.template?.ast.components ?? []) {
     for (const name of new Set([camelize(component), capitalize(camelize(component))])) {
-      if (declaredVariables.has(name)) {
+      if (setupBindings.has(name)) {
         setupExposed.add(name);
       }
     }
