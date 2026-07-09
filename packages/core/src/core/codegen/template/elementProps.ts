@@ -11,7 +11,7 @@ import { generateCamelized } from "../utils/camelized";
 import { generateUnicode } from "../utils/unicode";
 import { generateModifiers } from "./elementDirectives";
 import { generateEventArg, generateEventExpression } from "./elementEvents";
-import { generateInterpolation } from "./interpolation";
+import { generateInterpolation, shouldIdentifierSkipped } from "./interpolation";
 import { generateObjectProperty } from "./objectProperty";
 import type { Code, CodeInformation } from "../../types";
 import type { TemplateCodegenContext } from "./context";
@@ -261,7 +261,7 @@ export function* generatePropExp(
         codeFeatures.verification,
       );
 
-      if (ctx.scopes.some((scope) => scope.has(propVariableName))) {
+      if (shouldIdentifierSkipped(ctx, propVariableName)) {
         yield* codes;
       }
       else if (options.setupRefs.has(propVariableName)) {

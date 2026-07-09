@@ -149,7 +149,7 @@ function forEachIdentifiers(
   return identifiers;
 }
 
-function shouldIdentifierSkipped(ctx: TemplateCodegenContext, text: string) {
+export function shouldIdentifierSkipped(ctx: TemplateCodegenContext, text: string) {
   return ctx.scopes.some((scope) => scope.has(text)) ||
     isGloballyAllowed(text) ||
     isLiteralWhitelisted(text) ||
