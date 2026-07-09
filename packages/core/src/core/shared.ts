@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 import { hyphenate } from "@vue/shared";
 import { ResolverFactory } from "oxc-resolver";
 import { join } from "pathe";
@@ -8,12 +9,18 @@ import type { Segment } from "muggle-string";
 import type { IRTemplate } from "./parse/ir";
 import type { CodeInformation } from "./types";
 
-export function runTsgo(...args: string[]) {
+const require = createRequire(import.meta.url);
+
+export function runTsgo(tsdk: string, ...args: string[]) {
   const resolver = ResolverFactory.default();
-  const resolvedTsgo = resolver.sync(process.cwd(), "typescript/package.json");
+  const resolvedTsgo = resolver.sync(process.cwd(), `${tsdk}/package.json`);
 
   if (resolvedTsgo?.path === void 0) {
-    console.error(`[Vue] Failed to resolve the path of tsgo. Please ensure the typescript@7 is installed.`);
+    console.error(`[Vue] Failed to resolve the path of typescript. Please ensure the typescript@7 is installed.`);
+    process.exit(1);
+  }
+  else if (require(resolvedTsgo.path).version?.startsWith("7") !== true) {
+    console.error(`[Vue] The version of typescript is not compatible. Please ensure the typescript@7 is installed.`);
     process.exit(1);
   }
   const tsgo = join(resolvedTsgo.path, "../bin/tsc");

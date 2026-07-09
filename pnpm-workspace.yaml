@@ -27,7 +27,8 @@ catalog:
   oxc-walker: ^1.0.0
   pathe: ^2.0.3
   tsdown: ^0.22.4
-  typescript: ^7.0.2
+  typescript: npm:@typescript/typescript6@^6.0.2
+  typescript7: npm:typescript@^7.0.2
   unrun: ^0.3.1
   vitest: ^4.1.10
   vscode-jsonrpc: ^9.0.1

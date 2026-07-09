@@ -2,7 +2,13 @@
   "name": "playground",
   "type": "module",
   "private": true,
+  "scripts": {
+    "typecheck": "node ../packages/core/dist/cli.mjs --tsdk typescript7"
+  },
   "dependencies": {
     "vue": "catalog:"
+  },
+  "devDependencies": {
+    "typescript7": "catalog:"
   }
 }

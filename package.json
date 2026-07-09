@@ -15,6 +15,7 @@
     "bumpp": "catalog:",
     "eslint": "catalog:",
     "tsdown": "catalog:",
+    "typescript": "catalog:",
     "unrun": "catalog:",
     "vitest": "catalog:"
   }

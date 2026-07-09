@@ -24,4 +24,7 @@ pnpm vue-tsgo --project .nuxt/tsconfig.app.json
 
 # multiple projects (references)
 pnpm vue-tsgo --build
+
+# custom typescript entry
+pnpm vue-tsgo --tsdk typescript7
 ```

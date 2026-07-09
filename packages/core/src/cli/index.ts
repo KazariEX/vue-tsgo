@@ -17,6 +17,10 @@ const tsgo = defineCommand({
       type: String,
       short: "p",
     },
+    tsdk: {
+      type: String,
+      default: "typescript",
+    },
   },
 }, async (context) => {
   let configPath = context.flags.build ?? context.flags.project;
@@ -36,7 +40,10 @@ const tsgo = defineCommand({
   const project = new Project(configPath);
   await project.initialize();
   await project.generate();
-  await project.check(context.flags.build !== void 0 ? "build" : "project");
+  await project.check(
+    context.flags.tsdk,
+    context.flags.build !== void 0 ? "build" : "project",
+  );
 });
 
 await Cli()

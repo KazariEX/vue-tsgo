@@ -264,8 +264,8 @@ export class Project {
     await Promise.all(tasks.map((task) => task()));
   }
 
-  async check(mode: "build" | "project") {
-    const child = runTsgo("--lsp", "-stdio");
+  async check(tsdk: string, mode: "build" | "project") {
+    const child = runTsgo(tsdk, "--lsp", "-stdio");
 
     const connection = createMessageConnection(
       new StreamMessageReader(child.stdout),

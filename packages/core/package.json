@@ -28,9 +28,6 @@
     "test": "vitest",
     "generate-names": "unrun scripts/generate-names.ts"
   },
-  "peerDependencies": {
-    "typescript": ">=7.0.2"
-  },
   "dependencies": {
     "@vue/compiler-dom": "catalog:",
     "@vue/language-core": "catalog:",
@@ -47,7 +44,6 @@
     "vscode-jsonrpc": "catalog:"
   },
   "devDependencies": {
-    "typescript": "catalog:",
     "vscode-languageserver-protocol": "catalog:"
   }
 }
