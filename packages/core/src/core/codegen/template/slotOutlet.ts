@@ -3,7 +3,7 @@ import { getAttributeValueOffset, getElementTagOffsets } from "../../shared";
 import { codeFeatures } from "../codeFeatures";
 import { helpers, names } from "../names";
 import { endOfLine, newLine } from "../utils";
-import { generateBoundary } from "../utils/boundary";
+import { Boundary, generateBoundary } from "../utils/boundary";
 import { generateElementProps, generatePropExp } from "./elementProps";
 import { generateInterpolation } from "./interpolation";
 import { generatePropertyAccess } from "./propertyAccess";
@@ -60,7 +60,7 @@ export function* generateSlotOutlet(
         codes = [`["default"]`];
       }
 
-      const boundary = yield* generateBoundary(
+      const boundary = yield* Boundary.start(
         "template",
         nameProp.loc.start.offset,
         nameProp.loc.end.offset,
@@ -71,7 +71,7 @@ export function* generateSlotOutlet(
       yield boundary.end();
     }
     else {
-      const boundary = yield* generateBoundary(
+      const boundary = yield* Boundary.start(
         "template",
         tagLocStart,
         tagLocEnd,
@@ -89,7 +89,7 @@ export function* generateSlotOutlet(
       yield boundary.end();
     }
     yield `)(`;
-    const boundary = yield* generateBoundary(
+    const boundary = yield* Boundary.start(
       "template",
       tagLocStart,
       tagLocEnd,

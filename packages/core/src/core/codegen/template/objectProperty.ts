@@ -1,7 +1,7 @@
 import { camelize } from "@vue/shared";
 import { helpers } from "../names";
 import { identifierRE } from "../utils";
-import { generateBoundary } from "../utils/boundary";
+import { Boundary } from "../utils/boundary";
 import { generateCamelized } from "../utils/camelized";
 import { generateStringLiteralKey } from "../utils/stringLiteralKey";
 import { generateInterpolation } from "./interpolation";
@@ -47,9 +47,9 @@ export function* generateObjectProperty(
       yield* generateCamelized(code, "template", offset, features);
     }
     else {
-      const boundary = yield* generateBoundary("template", offset, offset + code.length, features);
+      const boundary = yield* Boundary.start("template", offset, offset + code.length, features);
       yield `"`;
-      yield* generateCamelized(code, "template", offset, { __combineToken: boundary.token });
+      yield* generateCamelized(code, "template", offset, boundary.features);
       yield `"`;
       yield boundary.end();
     }

@@ -5,7 +5,7 @@ import { codeFeatures } from "../codeFeatures";
 import { helpers } from "../names";
 import { getUnwrappedExpression } from "../ranges/utils";
 import { endOfLine, identifierRE, newLine } from "../utils";
-import { generateBoundary } from "../utils/boundary";
+import { Boundary } from "../utils/boundary";
 import { generateCamelized } from "../utils/camelized";
 import { generateInterpolation } from "./interpolation";
 import type { Code, CodeInformation } from "../../types";
@@ -121,15 +121,15 @@ export function* generateEventArg(
     name = capitalize(name);
   }
 
-  const boundary = yield* generateBoundary("template", start, start + name.length, features);
+  const boundary = yield* Boundary.start("template", start, start + name.length, features);
   if (identifierRE.test(camelize(name))) {
     yield prefix;
-    yield* generateCamelized(name, "template", start, { __combineToken: boundary.token });
+    yield* generateCamelized(name, "template", start, boundary.features);
   }
   else {
     yield `"`;
     yield prefix;
-    yield* generateCamelized(name, "template", start, { __combineToken: boundary.token });
+    yield* generateCamelized(name, "template", start, boundary.features);
     yield `"`;
   }
   yield boundary.end();

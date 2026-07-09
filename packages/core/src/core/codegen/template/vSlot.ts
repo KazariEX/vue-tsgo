@@ -5,7 +5,7 @@ import { codeFeatures } from "../codeFeatures";
 import { helpers } from "../names";
 import { collectBindingIdentifiers } from "../ranges/binding";
 import { endOfLine, newLine } from "../utils";
-import { generateBoundary } from "../utils/boundary";
+import { Boundary, generateBoundary } from "../utils/boundary";
 import { generateInterpolation } from "./interpolation";
 import { generateObjectProperty } from "./objectProperty";
 import { generateTemplateChild } from "./templateChild";
@@ -142,9 +142,9 @@ function* generateSlotParameters(
   yield* interpolation;
   yield `] = ${helpers.vSlot}(${slotVar}!`;
 
-  if (types.some((t) => t)) {
+  if (types.some(Boolean)) {
     yield `, `;
-    const boundary = yield* generateBoundary(
+    const boundary = yield* Boundary.start(
       "template",
       exp.loc.start.offset,
       exp.loc.end.offset,

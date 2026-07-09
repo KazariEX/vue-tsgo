@@ -6,7 +6,7 @@ import { getAttributeValueOffset, hyphenateAttr, hyphenateTag } from "../../shar
 import { codeFeatures } from "../codeFeatures";
 import { helpers, names } from "../names";
 import { identifierRE, newLine } from "../utils";
-import { generateBoundary } from "../utils/boundary";
+import { Boundary } from "../utils/boundary";
 import { generateCamelized } from "../utils/camelized";
 import { generateUnicode } from "../utils/unicode";
 import { generateModifiers } from "./elementDirectives";
@@ -112,7 +112,7 @@ export function* generateElementProps(
       if (shouldSpread) {
         yield `...{ `;
       }
-      const boundary = yield* generateBoundary(
+      const boundary = yield* Boundary.start(
         "template",
         prop.loc.start.offset,
         prop.loc.end.offset,
@@ -129,7 +129,7 @@ export function* generateElementProps(
         );
       }
       else {
-        const boundary = yield* generateBoundary(
+        const boundary = yield* Boundary.start(
           "template",
           prop.loc.start.offset,
           prop.loc.start.offset + "v-model".length,
@@ -140,7 +140,7 @@ export function* generateElementProps(
       }
       yield `: `;
       const argLoc = prop.arg?.loc ?? prop.loc;
-      const boundary2 = yield* generateBoundary(
+      const boundary2 = yield* Boundary.start(
         "template",
         argLoc.start.offset,
         argLoc.end.offset,
@@ -176,7 +176,7 @@ export function* generateElementProps(
       if (shouldSpread) {
         yield `...{ `;
       }
-      const boundary = yield* generateBoundary(
+      const boundary = yield* Boundary.start(
         "template",
         prop.loc.start.offset,
         prop.loc.end.offset,
@@ -214,7 +214,7 @@ export function* generateElementProps(
         failedPropExps?.push({ node: prop.exp, prefix: "(", suffix: ")" });
       }
       else {
-        const boundary = yield* generateBoundary(
+        const boundary = yield* Boundary.start(
           "template",
           prop.loc.start.offset,
           prop.exp.loc.end.offset,

@@ -5,7 +5,7 @@ import { getAttributeValueOffset, getElementTagOffsets, hyphenateTag } from "../
 import { codeFeatures } from "../codeFeatures";
 import { helpers, names } from "../names";
 import { endOfLine, identifierRE, newLine } from "../utils";
-import { generateBoundary } from "../utils/boundary";
+import { Boundary, generateBoundary } from "../utils/boundary";
 import { generateCamelized } from "../utils/camelized";
 import { generateStringLiteralKey } from "../utils/stringLiteralKey";
 import { generateElementDirectives } from "./elementDirectives";
@@ -163,14 +163,14 @@ export function* generateComponent(
   const commentInfo = ctx.getCommentInfo();
   if (commentInfo.generic) {
     const { content, offset } = commentInfo.generic;
-    const boundary = yield* generateBoundary(
+    const boundary = yield* Boundary.start(
       "template",
       offset,
       offset + content.length,
       codeFeatures.verification,
     );
     yield `<`;
-    yield [content, "template", offset, { __combineToken: boundary.token }];
+    yield [content, "template", offset, boundary.features];
     yield `>`;
     yield boundary.end();
   }
@@ -178,7 +178,7 @@ export function* generateComponent(
   const shouldInheritAttrs = hasVBindAttrs(options, ctx, node);
 
   yield `(`;
-  const boundary = yield* generateBoundary(
+  const boundary = yield* Boundary.start(
     "component",
     startTagOffset,
     startTagOffset + tag.length,
@@ -280,7 +280,7 @@ export function* generateElement(
     );
   }
   yield `)(`;
-  const boundary = yield* generateBoundary(
+  const boundary = yield* Boundary.start(
     "element",
     startTagOffset,
     startTagOffset + node.tag.length,
@@ -338,7 +338,7 @@ export function* generateFragment(
         ? helpers.asFunctionalElement0
         : helpers.asFunctionalElement1
     }(${names.intrinsics}.template)(`;
-    const boundary = yield* generateBoundary(
+    const boundary = yield* Boundary.start(
       "template",
       startTagOffset,
       startTagOffset + node.tag.length,

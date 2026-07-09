@@ -3,7 +3,7 @@ import { camelize, isBuiltInDirective } from "@vue/shared";
 import { codeFeatures } from "../codeFeatures";
 import { helpers, names } from "../names";
 import { endOfLine } from "../utils";
-import { generateBoundary } from "../utils/boundary";
+import { Boundary, generateBoundary } from "../utils/boundary";
 import { generateCamelized } from "../utils/camelized";
 import { generateStringLiteralKey } from "../utils/stringLiteralKey";
 import { generatePropExp } from "./elementProps";
@@ -28,7 +28,7 @@ export function* generateElementDirectives(
     ) {
       continue;
     }
-    const boundary = yield* generateBoundary(
+    const boundary = yield* Boundary.start(
       "template",
       prop.loc.start.offset,
       prop.loc.end.offset,
@@ -52,7 +52,7 @@ function* generateIdentifier(
   prop: CompilerDOM.DirectiveNode,
 ): Generator<Code> {
   const rawName = "v-" + prop.name;
-  const boundary = yield* generateBoundary(
+  const boundary = yield* Boundary.start(
     "template",
     prop.loc.start.offset,
     prop.loc.start.offset + rawName.length,

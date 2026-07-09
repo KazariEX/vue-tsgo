@@ -3,7 +3,7 @@ import { parseAndWalk, ScopeTracker } from "oxc-walker";
 import { codeFeatures } from "../codeFeatures";
 import { names } from "../names";
 import { identifierRE } from "../utils";
-import { generateBoundary } from "../utils/boundary";
+import { Boundary } from "../utils/boundary";
 import type { IRBlock } from "../../parse/ir";
 import type { Code, CodeInformation } from "../../types";
 import type { TemplateCodegenContext } from "./context";
@@ -63,7 +63,7 @@ export function* generateInterpolation(
       yield `.value`;
     }
     else {
-      const boundary = yield* generateBoundary(
+      const boundary = yield* Boundary.start(
         block.name,
         start + offset,
         start + offset + name.length,

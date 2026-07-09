@@ -1,41 +1,37 @@
 import type { Code, CodeInformation } from "../../types";
 
-export function generateBoundary(
-  source: string,
-  start: number,
-  end: number,
-  features: CodeInformation,
-): Generator<Code, {
-  token: symbol;
-  end: () => Code;
-}>;
+export class Boundary {
+  private constructor(
+    private source: string,
+    private end2: number,
+    public features: CodeInformation,
+  ) {}
 
-export function generateBoundary(
-  source: string,
-  start: number,
-  end: number,
-  features: CodeInformation,
-  ...codes: Code[]
-): Generator<Code, void>;
+  static * start(
+    source: string,
+    start: number,
+    end: number,
+    features: CodeInformation,
+  ): Generator<Code, Boundary> {
+    features = { ...features, __combineToken: Symbol() };
+    yield [``, source, start, features];
+    return new Boundary(source, end, features);
+  }
+
+  end(): Code {
+    return [``, this.source, this.end2, this.features];
+  }
+}
 
 export function* generateBoundary(
   source: string,
   start: number,
   end: number,
   features: CodeInformation,
-  ...codes: Code[]
+  ...codes: [Code, ...Code[]]
 ): Generator<Code> {
-  const token = Symbol(source);
-  yield ["", source, start, { ...features, __combineToken: token }];
-
-  if (codes.length) {
-    yield* codes;
-    yield ["", source, end, { __combineToken: token }];
-  }
-  else {
-    return {
-      token,
-      end: () => ["", source, end, { __combineToken: token }],
-    };
-  }
+  features = { ...features, __combineToken: Symbol() };
+  yield ["", source, start, features];
+  yield* codes;
+  yield ["", source, end, features];
 }

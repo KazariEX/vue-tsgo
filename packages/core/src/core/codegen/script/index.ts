@@ -2,7 +2,7 @@ import type { VueCompilerOptions } from "@vue/language-core";
 import { codeFeatures } from "../codeFeatures";
 import { names } from "../names";
 import { endOfLine, newLine, section } from "../utils";
-import { generateBoundary } from "../utils/boundary";
+import { Boundary } from "../utils/boundary";
 import { createScriptCodegenContext, type ScriptCodegenContext } from "./context";
 import { generateSetupBody, generateSetupGeneric, generateSetupImports } from "./setup";
 import { generateTemplate } from "./template";
@@ -53,7 +53,7 @@ function* generateScript(
     }
 
     yield `import ${names.export} from `;
-    const boundary = yield* generateBoundary(
+    const boundary = yield* Boundary.start(
       "main",
       offset,
       offset + text.length,
@@ -64,7 +64,7 @@ function* generateScript(
       text.slice(0, text.length),
       "main",
       offset,
-      { __combineToken: boundary.token },
+      boundary.features,
     ];
     yield text.slice(text.length);
     yield `"`;
@@ -216,7 +216,7 @@ function* generateScriptWithExportDefault(
 
 function* generateExportDeclareEqual(block: IRBlock, name: string): Generator<Code> {
   yield `const `;
-  const boundary = yield* generateBoundary(
+  const boundary = yield* Boundary.start(
     block.name,
     0,
     block.content.length,

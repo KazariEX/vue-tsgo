@@ -1,4 +1,4 @@
-import { generateBoundary } from "./boundary";
+import { Boundary } from "./boundary";
 import type { Code, CodeInformation } from "../../types";
 
 export function* generateStringLiteralKey(
@@ -10,9 +10,9 @@ export function* generateStringLiteralKey(
     yield `"${code}"`;
   }
   else {
-    const boundary = yield* generateBoundary("template", offset, offset + code.length, features);
+    const boundary = yield* Boundary.start("template", offset, offset + code.length, features);
     yield `"`;
-    yield [code, "template", offset, { __combineToken: boundary.token }];
+    yield [code, "template", offset, boundary.features];
     yield `"`;
     yield boundary.end();
   }
