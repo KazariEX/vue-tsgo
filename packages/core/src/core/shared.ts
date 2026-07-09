@@ -10,13 +10,13 @@ import type { CodeInformation } from "./types";
 
 export function runTsgo(...args: string[]) {
   const resolver = ResolverFactory.default();
-  const resolvedTsgo = resolver.sync(process.cwd(), "@typescript/native-preview/package.json");
+  const resolvedTsgo = resolver.sync(process.cwd(), "typescript/package.json");
 
   if (resolvedTsgo?.path === void 0) {
-    console.error(`[Vue] Failed to resolve the path of tsgo. Please ensure the @typescript/native-preview package is installed.`);
+    console.error(`[Vue] Failed to resolve the path of tsgo. Please ensure the typescript@7 is installed.`);
     process.exit(1);
   }
-  const tsgo = join(resolvedTsgo.path, "../bin/tsgo.js");
+  const tsgo = join(resolvedTsgo.path, "../bin/tsc");
 
   return spawn(process.execPath, [tsgo, ...args]);
 }

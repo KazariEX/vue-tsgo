@@ -278,7 +278,7 @@ export class Project {
       rootUri: pathToFileURL(this.targetRoot).href,
       capabilities: {},
     });
-    await connection.sendNotification("initialized");
+    await connection.sendNotification("initialized", {});
 
     const projects: Project[] = [this];
     if (mode === "build") {

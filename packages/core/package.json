@@ -29,7 +29,7 @@
     "generate-names": "unrun scripts/generate-names.ts"
   },
   "peerDependencies": {
-    "@typescript/native-preview": "*"
+    "typescript": ">=7.0.2"
   },
   "dependencies": {
     "@vue/compiler-dom": "catalog:",
@@ -47,7 +47,7 @@
     "vscode-jsonrpc": "catalog:"
   },
   "devDependencies": {
-    "@typescript/native-preview": "catalog:",
+    "typescript": "catalog:",
     "vscode-languageserver-protocol": "catalog:"
   }
 }
