@@ -1,5 +1,5 @@
 import { isGloballyAllowed, makeMap } from "@vue/shared";
-import { parseAndWalk, ScopeTracker } from "oxc-walker";
+import { Analyzer } from "yuku-analyzer";
 import { codeFeatures } from "../codeFeatures";
 import { names } from "../names";
 import { identifierRE } from "../utils";
@@ -109,41 +109,29 @@ function forEachIdentifiers(
   prefix: string,
   suffix: string,
 ) {
-  const scopeTracker = new ScopeTracker();
   const identifiers: [string, number, boolean][] = [];
 
   if (identifierRE.test(code) && !shouldIdentifierSkipped(ctx, code)) {
     identifiers.push([code, 0, false]);
   }
   else {
-    parseAndWalk(prefix + code + suffix, "dummy.ts", {
-      scopeTracker,
-      enter(node, parent) {
-        if (
-          node.type !== "Identifier" ||
-          parent?.type === "MemberExpression" && node !== parent.object && !parent.computed ||
-          parent?.type === "Property" && node === parent.key ||
-          parent?.type === "TSFunctionType" ||
-          parent?.type === "TSMethodSignature" ||
-          parent?.type === "TSPropertySignature" ||
-          parent?.type === "TSTypeReference" || (
-            parent?.type === "TSQualifiedName" &&
-            node !== parent.left &&
-            parent.parent?.type !== "TSTypeQuery"
-          ) ||
-          scopeTracker.isDeclared(node.name) ||
-          shouldIdentifierSkipped(ctx, node.name)
-        ) {
-          return;
-        }
+    const analyzer = new Analyzer();
+    const module = analyzer.addFile("dummy.ts", prefix + code + suffix);
 
-        identifiers.push([
-          node.name,
-          node.start - prefix.length,
-          parent?.type === "Property" && parent.shorthand,
-        ]);
-      },
-    });
+    for (const { kind, node } of module.unresolvedReferences) {
+      const parent = module.parentOf(node);
+      if (
+        kind === "type" && parent?.type !== "TSTypeQuery" ||
+        shouldIdentifierSkipped(ctx, node.name)
+      ) {
+        continue;
+      }
+      identifiers.push([
+        node.name,
+        node.start - prefix.length,
+        parent?.type === "Property" && parent.shorthand === true,
+      ]);
+    }
   }
 
   return identifiers;

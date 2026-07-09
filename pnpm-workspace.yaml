@@ -22,9 +22,7 @@ catalog:
   get-tsconfig: 5.0.0-beta.5
   mlly: ^1.8.2
   muggle-string: ^0.4.1
-  oxc-parser: ^0.139.0
   oxc-resolver: ^11.23.0
-  oxc-walker: ^1.0.0
   pathe: ^2.0.3
   tsdown: ^0.22.4
   typescript: npm:@typescript/typescript6@^6.0.2
@@ -34,3 +32,5 @@ catalog:
   vscode-jsonrpc: ^9.0.1
   vscode-languageserver-protocol: ^3.18.2
   vue: ^3.5.39
+  yuku-analyzer: ^0.5.44
+  yuku-parser: ^0.5.44

@@ -1,6 +1,5 @@
-import { type Identifier, walk } from "oxc-walker";
+import { type BindingPattern, type BindingProperty, type FunctionParameter, type Identifier, type Node, type Program, walk } from "yuku-parser";
 import type { VueCompilerOptions } from "@vue/language-core";
-import type { BindingPattern, BindingProperty, Node, ParamPattern, Program } from "oxc-parser";
 import { getRange, isFunctionLike, type Range } from "./utils";
 
 export function collectBindingRanges(ast: Program, vueCompilerOptions: VueCompilerOptions) {
@@ -81,16 +80,16 @@ export function collectBindingIdentifiers(node: Node) {
   const result: [Identifier, boolean][] = [];
 
   walk(node, {
-    enter(node) {
+    enter(node, ctx) {
       if (node.type === "VariableDeclarator") {
         result.push(...forEachBindingIdentifier(node.id));
-        this.skip();
+        ctx.skip();
       }
       else if (isFunctionLike(node)) {
         for (const param of node.params) {
           result.push(...forEachBindingIdentifier(param));
         }
-        this.skip();
+        ctx.skip();
       }
     },
   });
@@ -108,7 +107,7 @@ export function collectBindingIdentifiers(node: Node) {
 }
 
 function* forEachBindingIdentifier(
-  node: Identifier | BindingPattern | BindingProperty | ParamPattern,
+  node: Identifier | BindingPattern | BindingProperty | FunctionParameter,
   rest = false,
 ): Generator<[Identifier, boolean]> {
   switch (node.type) {

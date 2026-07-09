@@ -37,11 +37,11 @@
     "get-tsconfig": "catalog:",
     "mlly": "catalog:",
     "muggle-string": "catalog:",
-    "oxc-parser": "catalog:",
     "oxc-resolver": "catalog:",
-    "oxc-walker": "catalog:",
     "pathe": "catalog:",
-    "vscode-jsonrpc": "catalog:"
+    "vscode-jsonrpc": "catalog:",
+    "yuku-analyzer": "catalog:",
+    "yuku-parser": "catalog:"
   },
   "devDependencies": {
     "vscode-languageserver-protocol": "catalog:"

@@ -1,4 +1,4 @@
-import type { ArrowFunctionExpression, Comment, Function, Node } from "oxc-parser";
+import type { ArrowFunctionExpression, Comment, Function, Node } from "yuku-parser";
 
 export interface Range {
   start: number;

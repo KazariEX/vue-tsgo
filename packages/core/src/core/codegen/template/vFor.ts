@@ -1,5 +1,5 @@
 import CompilerDOM from "@vue/compiler-dom";
-import { parseSync } from "oxc-parser";
+import { parse } from "yuku-parser";
 import { codeFeatures } from "../codeFeatures";
 import { helpers } from "../names";
 import { collectBindingIdentifiers } from "../ranges/binding";
@@ -25,7 +25,7 @@ export function* generateVFor(
     const end = (index ?? key ?? value)!.loc.end.offset;
     const text = node.loc.source.slice(start - node.loc.start.offset, end - node.loc.start.offset);
 
-    const { program: ast } = parseSync("dummy.ts", `const [${text}]`);
+    const ast = parse(`const [${text}]`, { lang: "ts" }).program;
     scope.declare(...collectBindingIdentifiers(ast).map((i) => i.name));
     yield [text, "template", start, codeFeatures.verification];
   }

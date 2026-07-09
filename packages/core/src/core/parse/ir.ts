@@ -1,5 +1,5 @@
 import CompilerDOM from "@vue/compiler-dom";
-import { type Comment, type OxcError, parseSync, type Program } from "oxc-parser";
+import { type Comment, type Diagnostic, parse, type Program, type SourceLang } from "yuku-parser";
 import type { VueCompilerOptions } from "@vue/language-core";
 import { getAttributeValueOffset } from "../shared";
 import { createSFC } from "./sfc";
@@ -41,13 +41,13 @@ export interface IRTemplate extends IRBlock {
 export interface IRScript extends IRBlock {
   ast: Program;
   comments: Comment[];
-  errors: OxcError[];
+  errors: Diagnostic[];
 }
 
 export interface IRScriptSetup extends IRBlock {
   ast: Program;
   comments: Comment[];
-  errors: OxcError[];
+  errors: Diagnostic[];
 }
 
 export interface IRStyle extends IRBlock {
@@ -105,7 +105,7 @@ export function createIR(sourcePath: string, sourceText: string, vueCompilerOpti
       }
       case "script": {
         const block = createIRBlock(node, "js");
-        const result = parseSync(`dummy.${block.lang}`, block.content);
+        const result = parse(block.content, { lang: block.lang as SourceLang });
 
         if (block.attrs.setup || block.attrs.vapor) {
           ir.scriptSetup = {
@@ -113,7 +113,7 @@ export function createIR(sourcePath: string, sourceText: string, vueCompilerOpti
             name: "scriptSetup",
             ast: result.program,
             comments: result.comments,
-            errors: result.errors,
+            errors: result.diagnostics,
           };
         }
         else {
@@ -122,7 +122,7 @@ export function createIR(sourcePath: string, sourceText: string, vueCompilerOpti
             name: "script",
             ast: result.program,
             comments: result.comments,
-            errors: result.errors,
+            errors: result.diagnostics,
           };
         }
         break;

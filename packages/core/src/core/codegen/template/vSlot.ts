@@ -1,6 +1,6 @@
 import CompilerDOM from "@vue/compiler-dom";
 import { replaceSourceRange } from "muggle-string";
-import { parseSync, type Program, type TSTypeAnnotation } from "oxc-parser";
+import { parse, type Program, type TSTypeAnnotation } from "yuku-parser";
 import { codeFeatures } from "../codeFeatures";
 import { helpers } from "../names";
 import { collectBindingIdentifiers } from "../ranges/binding";
@@ -54,7 +54,7 @@ export function* generateVSlot(
   const scope = ctx.scope();
   if (slotDir?.exp?.type === CompilerDOM.NodeTypes.SIMPLE_EXPRESSION) {
     const text = `(${slotDir.exp.content}) => {}`;
-    const ast = parseSync("dummy.ts", text).program;
+    const ast = parse(text, { lang: "ts" }).program;
     yield* generateSlotParameters(options, ctx, ast, text, slotDir.exp, slotVar);
     scope.declare(...collectBindingIdentifiers(ast).map((i) => i.name));
   }
@@ -76,16 +76,14 @@ function* generateSlotParameters(
   exp: CompilerDOM.SimpleExpressionNode,
   slotVar: string,
 ): Generator<Code> {
-  const statement = ast.body[0];
   if (
-    !statement ||
-    statement.type !== "ExpressionStatement" ||
-    statement.expression.type !== "ArrowFunctionExpression"
+    ast.body.length < 1 ||
+    ast.body[0].type !== "ExpressionStatement" ||
+    ast.body[0].expression.type !== "ArrowFunctionExpression"
   ) {
     return;
   }
 
-  const { expression } = statement;
   const startOffset = exp.loc.start.offset - 1;
   const types: (Code | null)[] = [];
   const interpolation = [...generateInterpolation(
@@ -105,7 +103,7 @@ function* generateSlotParameters(
     startOffset + text.length,
   );
 
-  for (const parameter of expression.params) {
+  for (const parameter of ast.body[0].expression.params) {
     if (parameter.type === "TSParameterProperty") {
       continue;
     }

@@ -1,6 +1,6 @@
 import CompilerDOM from "@vue/compiler-dom";
 import { camelize, capitalize } from "@vue/shared";
-import { parseSync, type Program } from "oxc-parser";
+import { parse, type Program } from "yuku-parser";
 import { codeFeatures } from "../codeFeatures";
 import { helpers } from "../names";
 import { getUnwrappedExpression } from "../ranges/utils";
@@ -141,7 +141,7 @@ export function* generateEventExpression(
   prop: CompilerDOM.DirectiveNode,
 ): Generator<Code> {
   if (prop.exp?.type === CompilerDOM.NodeTypes.SIMPLE_EXPRESSION) {
-    const { program: ast } = parseSync("dummy.ts", prop.exp.content);
+    const ast = parse(prop.exp.content, { lang: "ts" }).program;
 
     const isCompound = isCompoundExpression(ast, prop.exp.content);
     const interpolation = generateInterpolation(

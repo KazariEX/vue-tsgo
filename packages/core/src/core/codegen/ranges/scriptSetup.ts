@@ -1,6 +1,5 @@
-import { walk } from "oxc-walker";
+import { type Argument, type CallExpression, type Node, walk } from "yuku-parser";
 import type { VueCompilerOptions } from "@vue/language-core";
-import type { Argument, CallExpression, Node } from "oxc-parser";
 import { collectBindingIdentifiers, collectBindingRanges } from "./binding";
 import { getClosestMultiLineCommentRange, getLeadingComments, getRange, isFunctionLike, isStatement, type Range } from "./utils";
 import type { IRScriptSetup } from "../../parse/ir";
@@ -94,16 +93,15 @@ export function collectScriptSetupRanges(scriptSetup: IRScriptSetup, vueCompiler
   const useSlots: CallExpressionRange[] = [];
   const useTemplateRef: UseTemplateRef[] = [];
 
-  const parents: Node[] = [];
   walk(scriptSetup.ast, {
-    enter(node) {
+    enter(node, ctx) {
       if (isFunctionLike(node)) {
-        this.skip();
+        ctx.skip();
         return;
       }
-      const parent = parents.at(-1)!;
+      const { parent } = ctx;
 
-      if (node.type === "CallExpression" && node.callee.type === "Identifier") {
+      if (parent && node.type === "CallExpression" && node.callee.type === "Identifier") {
         const calleeName = node.callee.name;
 
         if (vueCompilerOptions.macros.defineModel.includes(calleeName)) {
@@ -180,9 +178,10 @@ export function collectScriptSetupRanges(scriptSetup: IRScriptSetup, vueCompiler
           });
         }
         else if (vueCompilerOptions.macros.defineProps.includes(calleeName)) {
+          const ancestors = ctx.ancestors();
           defineProps = {
             ...parseCallExpressionAssignment(node, parent),
-            statement: getStatementRange(node, parents),
+            statement: getStatementRange(node, ancestors),
           };
 
           if (parent.type === "VariableDeclarator" && parent.id.type === "ObjectPattern") {
@@ -201,7 +200,7 @@ export function collectScriptSetupRanges(scriptSetup: IRScriptSetup, vueCompiler
             parent.callee.type === "Identifier" &&
             parent.callee.name === "withDefaults"
           ) {
-            const grandparent = parents.at(-2);
+            const grandparent = ancestors.at(-2);
             if (grandparent?.type === "VariableDeclarator" && grandparent.id.type === "Identifier") {
               defineProps.name = grandparent.id.name;
             }
@@ -218,13 +217,13 @@ export function collectScriptSetupRanges(scriptSetup: IRScriptSetup, vueCompiler
         else if (vueCompilerOptions.macros.defineEmits.includes(calleeName)) {
           defineEmits = {
             ...parseCallExpressionAssignment(node, parent),
-            statement: getStatementRange(node, parents),
+            statement: getStatementRange(node, ctx.ancestors()),
           };
         }
         else if (vueCompilerOptions.macros.defineSlots.includes(calleeName)) {
           defineSlots = {
             ...parseCallExpressionAssignment(node, parent),
-            statement: getStatementRange(node, parents),
+            statement: getStatementRange(node, ctx.ancestors()),
           };
         }
         else if (vueCompilerOptions.macros.defineExpose.includes(calleeName)) {
@@ -269,10 +268,6 @@ export function collectScriptSetupRanges(scriptSetup: IRScriptSetup, vueCompiler
           useTemplateRef.push(parseCallExpressionAssignment(node, parent));
         }
       }
-      parents.push(node);
-    },
-    leave() {
-      parents.pop();
     },
   });
 
@@ -312,19 +307,19 @@ function parseCallExpressionAssignment(node: CallExpression, parent: Node) {
   };
 }
 
-function getStatementRange(node: Node, parents: Node[]) {
+function getStatementRange(node: Node, ancestors: Node[]) {
   let statementRange: Range | undefined;
-  for (let i = parents.length - 1; i >= 0; i--) {
-    const parent = parents[i];
+  for (let i = ancestors.length - 1; i >= 0; i--) {
+    const parent = ancestors[i];
     if (isStatement(parent)) {
       walk(parent, {
         // eslint-disable-next-line no-loop-func
-        enter(node) {
+        enter(node, ctx) {
           const range = getRange(node);
           statementRange ??= range;
           statementRange.end = range.end;
           if (node !== parent) {
-            this.skip();
+            ctx.skip();
           }
         },
       });

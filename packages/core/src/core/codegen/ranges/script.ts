@@ -1,6 +1,6 @@
 
 import type { VueCompilerOptions } from "@vue/language-core";
-import type { ObjectExpression } from "oxc-parser";
+import type { ObjectExpression } from "yuku-parser";
 import { collectBindingRanges } from "./binding";
 import { getClosestMultiLineCommentRange, getRange, getUnwrappedExpression, type Range } from "./utils";
 import type { IRScript } from "../../parse/ir";
