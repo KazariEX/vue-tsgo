@@ -160,8 +160,9 @@ export function* generateComponent(
   );
   yield ` = ${functionalVar}`;
 
-  if (ctx.currentInfo.generic) {
-    const { content, offset } = ctx.currentInfo.generic;
+  const commentInfo = ctx.getCommentInfo();
+  if (commentInfo.generic) {
+    const { content, offset } = commentInfo.generic;
     const boundary = yield* generateBoundary(
       "template",
       offset,

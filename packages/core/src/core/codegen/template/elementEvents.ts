@@ -158,7 +158,7 @@ export function* generateEventExpression(
     if (isCompound) {
       yield `(...[$event]) => {${newLine}`;
       const scope = ctx.scope();
-      ctx.declare("$event");
+      scope.declare("$event");
       yield* ctx.generateConditionGuards();
       if (isSingleExpression(ast, prop.exp.content)) {
         yield `return (`;

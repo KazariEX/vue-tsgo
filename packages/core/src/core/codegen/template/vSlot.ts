@@ -1,6 +1,6 @@
 import CompilerDOM from "@vue/compiler-dom";
 import { replaceSourceRange } from "muggle-string";
-import { parseSync, type TSTypeAnnotation } from "oxc-parser";
+import { parseSync, type Program, type TSTypeAnnotation } from "oxc-parser";
 import { codeFeatures } from "../codeFeatures";
 import { helpers } from "../names";
 import { collectBindingIdentifiers } from "../ranges/binding";
@@ -53,7 +53,10 @@ export function* generateVSlot(
 
   const scope = ctx.scope();
   if (slotDir?.exp?.type === CompilerDOM.NodeTypes.SIMPLE_EXPRESSION) {
-    yield* generateSlotParameters(options, ctx, slotDir.exp, slotVar);
+    const text = `(${slotDir.exp.content}) => {}`;
+    const ast = parseSync("dummy.ts", text).program;
+    yield* generateSlotParameters(options, ctx, ast, text, slotDir.exp, slotVar);
+    scope.declare(...collectBindingIdentifiers(ast).map((i) => i.name));
   }
   for (const child of node.children) {
     yield* generateTemplateChild(options, ctx, child);
@@ -68,12 +71,11 @@ export function* generateVSlot(
 function* generateSlotParameters(
   options: TemplateCodegenOptions,
   ctx: TemplateCodegenContext,
+  ast: Program,
+  text: string,
   exp: CompilerDOM.SimpleExpressionNode,
   slotVar: string,
 ): Generator<Code> {
-  const text = `(${exp.content}) => {}`;
-  const { program: ast } = parseSync("dummy.ts", text);
-
   const statement = ast.body[0];
   if (
     !statement ||
@@ -154,6 +156,4 @@ function* generateSlotParameters(
     yield boundary.end();
   }
   yield `)${endOfLine}`;
-
-  ctx.declare(...collectBindingIdentifiers(ast).map((i) => i.name));
 }

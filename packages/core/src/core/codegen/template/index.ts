@@ -48,13 +48,13 @@ function* generateTemplate(
   const { vueCompilerOptions, template, propsAssignName, slotsAssignName } = options;
 
   const scope = ctx.scope();
-  ctx.declare(...options.setupConsts);
+  scope.declare(...options.setupConsts);
 
   if (propsAssignName !== void 0) {
-    ctx.declare(propsAssignName);
+    scope.declare(propsAssignName);
   }
   if (slotsAssignName !== void 0) {
-    ctx.declare(slotsAssignName);
+    scope.declare(slotsAssignName);
   }
   if (vueCompilerOptions.inferTemplateDollarSlots) {
     ctx.dollarVars.add("$slots");

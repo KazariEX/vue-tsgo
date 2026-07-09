@@ -40,7 +40,7 @@ function* generateStyle(
   ctx: TemplateCodegenContext,
 ): Generator<Code> {
   const scope = ctx.scope();
-  ctx.declare(...options.setupConsts);
+  scope.declare(...options.setupConsts);
   yield* generateStyleModules(options, ctx);
   yield* generateBindings(options, ctx);
   scope.end();
