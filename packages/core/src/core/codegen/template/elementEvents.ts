@@ -19,7 +19,17 @@ export function* generateElementEvents(
   getCtxVar: () => string,
   getPropsVar: () => string,
 ): Generator<Code> {
-  let emitVar: string | undefined;
+  const definitions: Record<string, {
+    propPrefix: string;
+    emitPrefix: string;
+    propName: string;
+    emitName: string;
+    items: {
+      prop: CompilerDOM.DirectiveNode;
+      source: string;
+      offset: number | undefined;
+    }[];
+  }> = {};
 
   for (const prop of node.props) {
     if (
@@ -33,13 +43,8 @@ export function* generateElementEvents(
         )
       )
     ) {
-      if (!emitVar) {
-        emitVar = ctx.getInternalVariable();
-        yield `let ${emitVar}!: ${helpers.ResolveEmits}<typeof ${componentVar}, typeof ${getCtxVar()}.emit>${endOfLine}`;
-      }
-
       let source = prop.arg?.loc.source ?? "model-value";
-      let start = prop.arg?.loc.start.offset;
+      let offset = prop.arg?.loc.start.offset;
       let propPrefix = "on-";
       let emitPrefix = "";
       if (prop.name === "model") {
@@ -48,25 +53,54 @@ export function* generateElementEvents(
       }
       else if (source.startsWith("vue:")) {
         source = source.slice("vue:".length);
-        start = start! + "vue:".length;
+        offset = offset! + "vue:".length;
         propPrefix = "onVnode-";
         emitPrefix = "vnode-";
       }
       const propName = camelize(propPrefix + source);
       const emitName = emitPrefix + source;
-      const camelizedEmitName = camelize(emitName);
+      const key = [
+        prop.name,
+        propName,
+        ...prop.modifiers.map((modifier) => modifier.content),
+      ].join("+");
 
-      yield `const ${ctx.getInternalVariable()}: ${helpers.NormalizeComponentEvent}<typeof ${getPropsVar()}, typeof ${emitVar}, "${propName}", "${emitName}", "${camelizedEmitName}"> = ({${newLine}`;
-      if (prop.name === "on") {
-        yield* generateEventArg(options, source, start!, propPrefix.slice(0, -1));
-        yield `: `;
-        yield* generateEventExpression(options, ctx, prop);
+      definitions[key] ??= {
+        propPrefix,
+        emitPrefix,
+        propName,
+        emitName,
+        items: [],
+      };
+      definitions[key].items.push({
+        prop,
+        source,
+        offset,
+      });
+    }
+
+    if (!Object.keys(definitions).length) {
+      return;
+    }
+
+    const emitsVar = ctx.getInternalVariable();
+    yield `let ${emitsVar}!: ${helpers.ResolveEmits}<typeof ${componentVar}, typeof ${getCtxVar()}.emit>${endOfLine}`;
+
+    for (const { propPrefix, propName, emitName, items } of Object.values(definitions)) {
+      yield `const ${ctx.getInternalVariable()}: ${helpers.ResolveEvent}<typeof ${getPropsVar()}, typeof ${emitsVar}, "${propName}", "${emitName}", "${camelize(emitName)}"> = {${newLine}`;
+      for (const { prop, source, offset } of items) {
+        if (prop.name === "on") {
+          yield* generateEventArg(options, source, offset!, propPrefix.slice(0, -1));
+          yield `: `;
+          yield* generateEventExpression(options, ctx, prop);
+        }
+        else {
+          yield `"${propName}": `;
+          yield* generateModelEventExpression(options, ctx, prop);
+        }
+        yield `,${newLine}`;
       }
-      else {
-        yield `"${propName}": `;
-        yield* generateModelEventExpression(options, ctx, prop);
-      }
-      yield `})${endOfLine}`;
+      yield `}${endOfLine}`;
     }
   }
 }
