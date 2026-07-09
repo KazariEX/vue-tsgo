@@ -159,7 +159,14 @@ export function* generateEventExpression(
       const scope = ctx.scope();
       ctx.declare("$event");
       yield* ctx.generateConditionGuards();
-      yield* interpolation;
+      if (isSingleExpression(ast, prop.exp.content)) {
+        yield `return (`;
+        yield* interpolation;
+        yield `)`;
+      }
+      else {
+        yield* interpolation;
+      }
       yield endOfLine;
       scope.end();
       yield `}`;
@@ -225,4 +232,14 @@ function isCompoundExpression(ast: Program, text: string) {
     }
   }
   return true;
+}
+
+function isSingleExpression(ast: Program, text: string) {
+  if (ast.body.length === 1 && text[ast.body[0].end - 1] !== ";") {
+    const statement = ast.body[0]!;
+    if (statement.type === "ExpressionStatement") {
+      return true;
+    }
+  }
+  return false;
 }
