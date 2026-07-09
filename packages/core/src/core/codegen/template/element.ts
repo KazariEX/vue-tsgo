@@ -10,7 +10,7 @@ import { generateCamelized } from "../utils/camelized";
 import { generateStringLiteralKey } from "../utils/stringLiteralKey";
 import { generateElementDirectives } from "./elementDirectives";
 import { generateElementEvents } from "./elementEvents";
-import { type FailedExpressionInfo, generateElementProps } from "./elementProps";
+import { type FailedPropExpression, generateElementProps } from "./elementProps";
 import { generateInterpolation } from "./interpolation";
 import { generatePropertyAccess } from "./propertyAccess";
 import { generateTemplateChild } from "./templateChild";
@@ -130,15 +130,16 @@ export function* generateComponent(
     }
   }
 
-  const failedExpressionInfos: FailedExpressionInfo[] = [];
+  const failedPropExps: FailedPropExpression[] = [];
   const propCodes = [...generateElementProps(
     options,
     ctx,
     node,
     props,
     options.vueCompilerOptions.checkUnknownProps,
-    failedExpressionInfos,
+    failedPropExps,
   )];
+  const propsStr = toString(propCodes);
 
   yield `// @ts-ignore${newLine}`;
   yield `const ${functionalVar} = ${
@@ -146,7 +147,7 @@ export function* generateComponent(
       ? helpers.asFunctionalComponent0
       : helpers.asFunctionalComponent1
   }(${componentVar}, new ${componentVar}({${newLine}`;
-  yield toString(propCodes);
+  yield propsStr;
   yield `}))${endOfLine}`;
 
   yield `const `;
@@ -173,12 +174,16 @@ export function* generateComponent(
     yield boundary.end();
   }
 
+  const shouldInheritAttrs = hasVBindAttrs(options, ctx, node);
+
   yield `(`;
   const boundary = yield* generateBoundary(
     "component",
     startTagOffset,
     startTagOffset + tag.length,
-    codeFeatures.verification,
+    shouldInheritAttrs && options.vueCompilerOptions.checkRequiredFallthroughAttributes
+      ? {}
+      : codeFeatures.verification,
   );
   yield `{${newLine}`;
   yield* propCodes;
@@ -186,7 +191,7 @@ export function* generateComponent(
   yield boundary.end();
   yield `, ...${helpers.functionalComponentArgsRest}(${functionalVar}))${endOfLine}`;
 
-  yield* generateFailedExpressions(options, ctx, failedExpressionInfos);
+  yield* generateFailedExpressions(options, ctx, failedPropExps);
   yield* generateElementEvents(
     options,
     ctx,
@@ -198,28 +203,30 @@ export function* generateComponent(
   yield* generateElementDirectives(options, ctx, node);
 
   const templateRef = getTemplateRef(options, ctx, node);
-  const isRootNode = ctx.singleRootNodes.has(node) &&
+  const isSingleRoot = ctx.singleRootNodes.has(node) &&
     !options.vueCompilerOptions.fallthroughComponentNames.includes(hyphenateTag(tag));
 
-  if (templateRef || isRootNode) {
+  if (templateRef || isSingleRoot) {
     const instanceVar = ctx.getInternalVariable();
-    yield `const ${instanceVar} = {} as (Parameters<NonNullable<typeof ${getCtxVar()}["expose"]>>[0] | null)`;
-    if (ctx.inVFor) {
-      yield `[]`;
-    }
+    yield `var ${instanceVar}!: Parameters<NonNullable<typeof ${getCtxVar()}["expose"]>>[0]`;
     yield endOfLine;
 
     if (templateRef) {
-      const typeExp = `typeof ${ctx.getHoistVariable(instanceVar)}`;
+      let typeExp = `typeof ${ctx.getHoistVariable(instanceVar)} | null`;
+      if (ctx.inVFor) {
+        typeExp = `(${typeExp})[]`;
+      }
       ctx.addTemplateRef(templateRef.name, typeExp, templateRef.offset);
     }
-    if (isRootNode) {
+    if (isSingleRoot) {
       ctx.singleRootElTypes.add(`NonNullable<typeof ${instanceVar}>["$el"]`);
     }
   }
 
-  if (hasVBindAttrs(options, ctx, node)) {
-    ctx.inheritedAttrVars.add(getPropsVar());
+  if (shouldInheritAttrs) {
+    const restsVar = ctx.getInternalVariable();
+    yield `var ${restsVar} = ${names.omit}(${getPropsVar()}, {\n${propsStr}})${endOfLine}`;
+    ctx.inheritedAttrVars.add(restsVar);
   }
 
   const slotDir = node.props.find(CompilerDOM.isVSlot);
@@ -242,7 +249,7 @@ export function* generateElement(
   node: CompilerDOM.ElementNode,
 ): Generator<Code> {
   const [startTagOffset, endTagOffset] = getElementTagOffsets(node, options.template);
-  const failedExpressionInfos: FailedExpressionInfo[] = [];
+  const failedPropExps: FailedPropExpression[] = [];
 
   yield `${
     options.vueCompilerOptions.checkUnknownProps
@@ -280,13 +287,13 @@ export function* generateElement(
     node,
     node.props,
     options.vueCompilerOptions.checkUnknownProps,
-    failedExpressionInfos,
+    failedPropExps,
   );
   yield `}`;
   yield boundary.end();
   yield `)${endOfLine}`;
 
-  yield* generateFailedExpressions(options, ctx, failedExpressionInfos);
+  yield* generateFailedExpressions(options, ctx, failedPropExps);
   yield* generateElementDirectives(options, ctx, node);
 
   const templateRef = getTemplateRef(options, ctx, node);
@@ -352,9 +359,9 @@ export function* generateFragment(
 function* generateFailedExpressions(
   options: TemplateCodegenOptions,
   ctx: TemplateCodegenContext,
-  failedExpressionInfos: FailedExpressionInfo[],
+  failedPropExps: FailedPropExpression[],
 ): Generator<Code> {
-  for (const { node, prefix, suffix } of failedExpressionInfos) {
+  for (const { node, prefix, suffix } of failedPropExps) {
     yield* generateInterpolation(
       options,
       ctx,

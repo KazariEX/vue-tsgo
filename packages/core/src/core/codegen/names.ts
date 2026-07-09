@@ -14,6 +14,7 @@ export const names = define({
     exposed: "",
     intrinsics: "",
     modelEmit: "",
+    omit: "",
     props: "",
     propsOption: "",
     self: "",

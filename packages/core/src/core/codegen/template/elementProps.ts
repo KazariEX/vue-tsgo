@@ -17,7 +17,7 @@ import type { Code, CodeInformation } from "../../types";
 import type { TemplateCodegenContext } from "./context";
 import type { TemplateCodegenOptions } from "./index";
 
-export interface FailedExpressionInfo {
+export interface FailedPropExpression {
   node: CompilerDOM.SimpleExpressionNode;
   prefix: string;
   suffix: string;
@@ -29,7 +29,7 @@ export function* generateElementProps(
   node: CompilerDOM.ElementNode,
   props: CompilerDOM.ElementNode["props"],
   checkUnknownProps: boolean,
-  failedExpressionInfos?: FailedExpressionInfo[],
+  failedPropExps?: FailedPropExpression[],
 ): Generator<Code> {
   const isComponent = node.tagType === CompilerDOM.ElementTypes.COMPONENT;
 
@@ -61,11 +61,11 @@ export function* generateElementProps(
       prop.arg.loc.source.startsWith("[") &&
       prop.arg.loc.source.endsWith("]")
     ) {
-      failedExpressionInfos?.push({ node: prop.arg, prefix: "(", suffix: ")" });
-      failedExpressionInfos?.push({ node: prop.exp, prefix: "() => {", suffix: "}" });
+      failedPropExps?.push({ node: prop.arg, prefix: "(", suffix: ")" });
+      failedPropExps?.push({ node: prop.exp, prefix: "() => {", suffix: "}" });
     }
     else if (!prop.arg && prop.exp?.type === CompilerDOM.NodeTypes.SIMPLE_EXPRESSION) {
-      failedExpressionInfos?.push({ node: prop.exp, prefix: "(", suffix: ")" });
+      failedPropExps?.push({ node: prop.exp, prefix: "(", suffix: ")" });
     }
   }
 
@@ -93,7 +93,7 @@ export function* generateElementProps(
         options.vueCompilerOptions.dataAttributes.some((pattern) => matchesGlob(propName!, pattern))
       ) {
         if (prop.exp && prop.exp.constType !== CompilerDOM.ConstantTypes.CAN_STRINGIFY) {
-          failedExpressionInfos?.push({ node: prop.exp, prefix: "(", suffix: ")" });
+          failedPropExps?.push({ node: prop.exp, prefix: "(", suffix: ")" });
         }
         continue;
       }
@@ -211,7 +211,7 @@ export function* generateElementProps(
       prop.exp?.type === CompilerDOM.NodeTypes.SIMPLE_EXPRESSION
     ) {
       if (prop.exp.loc.source === "$attrs") {
-        failedExpressionInfos?.push({ node: prop.exp, prefix: "(", suffix: ")" });
+        failedPropExps?.push({ node: prop.exp, prefix: "(", suffix: ")" });
       }
       else {
         const boundary = yield* generateBoundary(

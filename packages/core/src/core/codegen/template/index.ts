@@ -74,7 +74,7 @@ function* generateTemplate(
   }
   yield* ctx.generateHoistVariables();
   yield* generateSlots(options, ctx);
-  yield* generateInheritedAttrs(ctx);
+  yield* generateInheritedAttrs(options, ctx);
   yield* generateTemplateRefs(options, ctx);
   yield* generateRootEl(ctx);
 
@@ -141,15 +141,22 @@ function* generateSlots(
   yield endOfLine;
 }
 
-function* generateInheritedAttrs(ctx: TemplateCodegenContext) {
+function* generateInheritedAttrs(
+  options: TemplateCodegenOptions,
+  ctx: TemplateCodegenContext,
+): Generator<Code> {
   if (!ctx.inheritedAttrVars.size) {
     return;
   }
   ctx.generatedTypes.add(names.InheritedAttrs);
 
-  yield `type ${names.InheritedAttrs} = Partial<${
-    Array.from(ctx.inheritedAttrVars, (name) => `typeof ${name}`).join(` & `)
-  }>`;
+  const type = Array.from(ctx.inheritedAttrVars, (name) => `typeof ${name}`).join(` & `);
+
+  yield `type ${names.InheritedAttrs} = ${
+    options.vueCompilerOptions.checkRequiredFallthroughAttributes
+      ? type
+      : `Partial<${type}>`
+  }`;
   yield endOfLine;
 }
 
