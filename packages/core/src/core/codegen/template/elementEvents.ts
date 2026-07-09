@@ -142,7 +142,7 @@ export function* generateEventExpression(
   if (prop.exp?.type === CompilerDOM.NodeTypes.SIMPLE_EXPRESSION) {
     const { program: ast } = parseSync("dummy.ts", prop.exp.content);
 
-    const isCompound = isCompoundExpression(ast);
+    const isCompound = isCompoundExpression(ast, prop.exp.content);
     const interpolation = generateInterpolation(
       options,
       ctx,
@@ -197,11 +197,11 @@ export function* generateModelEventExpression(
   }
 }
 
-function isCompoundExpression(ast: Program) {
+function isCompoundExpression(ast: Program, text: string) {
   if (ast.body.length === 0) {
     return false;
   }
-  if (ast.body.length === 1) {
+  if (ast.body.length === 1 && text[ast.body[0].end - 1] !== ";") {
     const statement = ast.body[0];
     if (statement.type === "ExpressionStatement") {
       let node = statement.expression;
